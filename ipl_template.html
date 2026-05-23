@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>IPL Crunch '26 &mdash; What The Data Actually Says</title>
+<style>  @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;700&display=swap');
+  :root{--bg:#08090d;--bg2:#0f1117;--bg3:#161b22;--border:#21262d;--text:#e6edf3;--sub:#8b949e;--green:#1db954;--red:#ff4b4b;--orange:#f97316;--blue:#3a86ff;--yellow:#ffbe0b;--pink:#ff006e;--white:#ffffff;}
+  *{margin:0;padding:0;box-sizing:border-box;}
+  body{background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;overflow-x:hidden;}
+  /* HERO */
+  .hero{min-height:100vh;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;padding:2rem;position:relative;overflow:hidden;}
+  .hero::before{content:'';position:absolute;inset:0;background:radial-gradient(ellipse 80% 50% at 50% -20%,rgba(29,185,84,.12) 0%,transparent 70%),radial-gradient(ellipse 60% 40% at 80% 80%,rgba(58,134,255,.08) 0%,transparent 60%);pointer-events:none;}
+  .hero-eyebrow{font-family:'JetBrains Mono',monospace;font-size:.75rem;letter-spacing:.25em;color:var(--green);text-transform:uppercase;margin-bottom:1.5rem;opacity:0;animation:fadeUp .6s .2s forwards;}
+  .hero-title{font-family:'Bebas Neue',sans-serif;font-size:clamp(3.5rem,10vw,9rem);line-height:.9;letter-spacing:.02em;margin-bottom:1.5rem;opacity:0;animation:fadeUp .7s .35s forwards;}
+  .hero-title span{color:var(--green);}
+  .hero-sub{font-size:1.1rem;color:var(--sub);max-width:560px;line-height:1.7;margin-bottom:3rem;opacity:0;animation:fadeUp .7s .5s forwards;}
+  .hero-stats{display:flex;gap:3rem;opacity:0;animation:fadeUp .7s .65s forwards;}
+  .hero-stat{text-align:center;}
+  .hero-stat-n{font-family:'Bebas Neue',sans-serif;font-size:2.4rem;color:var(--white);line-height:1;}
+  .hero-stat-l{font-size:.72rem;letter-spacing:.1em;text-transform:uppercase;color:var(--sub);margin-top:.3rem;}
+  .scroll-hint{position:absolute;bottom:2rem;left:50%;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:.5rem;color:var(--sub);font-size:.72rem;letter-spacing:.1em;text-transform:uppercase;opacity:0;animation:fadeUp .7s 1s forwards;}
+  .scroll-hint::after{content:'';width:1px;height:40px;background:linear-gradient(to bottom,var(--sub),transparent);animation:pulse 2s infinite;}
+  /* LAYOUT */
+  .section{max-width:1100px;margin:0 auto;padding:5rem 2rem;}
+  .section-label{font-family:'JetBrains Mono',monospace;font-size:.68rem;letter-spacing:.3em;text-transform:uppercase;color:var(--green);margin-bottom:.75rem;}
+  .section-title{font-family:'Bebas Neue',sans-serif;font-size:clamp(2.2rem,5vw,4rem);line-height:1;margin-bottom:3rem;}
+  .divider{height:1px;background:linear-gradient(to right,transparent,var(--border),transparent);margin:0 2rem;}
+  /* VERDICT CARDS */
+  .verdict-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:1.5rem;}
+  .verdict-card{background:var(--bg2);border:1px solid var(--border);border-radius:16px;padding:2rem;position:relative;overflow:hidden;transition:border-color .25s,transform .25s;}
+  .verdict-card:hover{border-color:var(--green);transform:translateY(-3px);}
+  .verdict-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:var(--accent-color,var(--green));}
+  .card-number{font-family:'Bebas Neue',sans-serif;font-size:5rem;line-height:1;color:var(--accent-color,var(--green));opacity:.15;position:absolute;top:1rem;right:1.5rem;}
+  .card-tag{font-family:'JetBrains Mono',monospace;font-size:.62rem;letter-spacing:.2em;text-transform:uppercase;color:var(--accent-color,var(--green));margin-bottom:.75rem;}
+  .card-headline{font-family:'Bebas Neue',sans-serif;font-size:1.8rem;line-height:1.1;margin-bottom:1rem;}
+  .card-body{font-size:.9rem;line-height:1.7;color:var(--sub);}
+  .card-body strong{color:var(--text);font-weight:600;}
+  .stat-pill{display:inline-block;background:rgba(29,185,84,.12);border:1px solid rgba(29,185,84,.25);color:var(--green);font-family:'JetBrains Mono',monospace;font-size:.78rem;padding:.25rem .65rem;border-radius:999px;margin:.25rem .15rem;white-space:nowrap;}
+  .stat-pill.red{background:rgba(255,75,75,.12);border-color:rgba(255,75,75,.25);color:var(--red);}
+  .stat-pill.orange{background:rgba(249,115,22,.12);border-color:rgba(249,115,22,.25);color:var(--orange);}
+  .stat-pill.blue{background:rgba(58,134,255,.12);border-color:rgba(58,134,255,.25);color:var(--blue);}
+  .stat-pill.yellow{background:rgba(255,190,11,.12);border-color:rgba(255,190,11,.25);color:var(--yellow);}
+  /* COUNTERFACTUAL */
+  .cf-block{background:var(--bg2);border:1px solid var(--border);border-radius:20px;padding:2.5rem;margin-bottom:2rem;position:relative;overflow:hidden;}
+  .cf-block::after{content:'WHAT IF?';font-family:'Bebas Neue',sans-serif;font-size:8rem;position:absolute;right:-1rem;bottom:-1.5rem;color:var(--orange);opacity:.04;pointer-events:none;line-height:1;}
+  .cf-match{font-family:'JetBrains Mono',monospace;font-size:.7rem;letter-spacing:.2em;text-transform:uppercase;color:var(--orange);margin-bottom:.75rem;}
+  .cf-title{font-family:'Bebas Neue',sans-serif;font-size:2.2rem;line-height:1.1;margin-bottom:1.5rem;}
+  .cf-row{display:flex;gap:1rem;margin-bottom:1.5rem;flex-wrap:wrap;}
+  .cf-box{flex:1;min-width:160px;background:var(--bg3);border:1px solid var(--border);border-radius:12px;padding:1.25rem;}
+  .cf-box.highlight{border-color:var(--orange);background:rgba(249,115,22,.06);}
+  .cf-box-label{font-size:.7rem;letter-spacing:.1em;text-transform:uppercase;color:var(--sub);margin-bottom:.5rem;}
+  .cf-box-val{font-family:'Bebas Neue',sans-serif;font-size:2.8rem;line-height:1;color:var(--text);}
+  .cf-box.highlight .cf-box-val{color:var(--orange);}
+  .cf-box-desc{font-size:.78rem;color:var(--sub);margin-top:.4rem;line-height:1.5;}
+  .cf-verdict{font-size:.92rem;line-height:1.7;color:var(--sub);border-left:3px solid var(--orange);padding-left:1rem;margin-top:.5rem;}
+  .cf-verdict strong{color:var(--text);}
+  /* WIN PROB TABLE */
+  .probe-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:1px;background:var(--border);border:1px solid var(--border);border-radius:16px;overflow:hidden;}
+  .probe-item{background:var(--bg2);padding:1.75rem;}
+  .probe-q{font-size:.78rem;color:var(--sub);margin-bottom:.75rem;line-height:1.5;}
+  .probe-a{font-family:'Bebas Neue',sans-serif;font-size:2rem;color:var(--text);line-height:1;margin-bottom:.4rem;}
+  .probe-context{font-size:.72rem;color:var(--sub);line-height:1.5;}
+  /* ARCHETYPE GRID */
+  .archetype-section{padding:5rem 0;}
+  .arch-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:1.25rem;margin-top:2.5rem;}
+  .arch-card{background:var(--bg2);border:1px solid var(--border);border-radius:16px;padding:1.75rem;position:relative;overflow:hidden;transition:border-color .25s,transform .25s;}
+  .arch-card:hover{transform:translateY(-3px);}
+  .arch-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:var(--ac,var(--green));}
+  .arch-icon{font-size:2.2rem;margin-bottom:.75rem;display:block;}
+  .arch-name{font-family:'Bebas Neue',sans-serif;font-size:1.6rem;color:var(--text);margin-bottom:.4rem;}
+  .arch-sig{font-size:.82rem;color:var(--sub);line-height:1.6;margin-bottom:1rem;}
+  .arch-players{font-family:'JetBrains Mono',monospace;font-size:.72rem;color:var(--ac,var(--green));margin-bottom:.6rem;}
+  .arch-count{font-size:.68rem;letter-spacing:.1em;text-transform:uppercase;color:var(--sub);}
+  .arch-divider{font-size:.7rem;font-weight:700;letter-spacing:.2em;text-transform:uppercase;color:var(--sub);margin:2rem 0 .5rem;opacity:.6;}
+  /* ERA DIVIDE */
+  .era-split{display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;margin:2rem 0;}
+  .era-box{background:var(--bg2);border:1px solid var(--border);border-radius:16px;padding:2rem;text-align:center;}
+  .era-box.new{border-color:var(--green);background:rgba(29,185,84,.04);}
+  .era-label{font-family:'JetBrains Mono',monospace;font-size:.68rem;letter-spacing:.2em;text-transform:uppercase;color:var(--sub);margin-bottom:1rem;}
+  .era-rpo{font-family:'Bebas Neue',sans-serif;font-size:4rem;line-height:1;margin-bottom:.5rem;}
+  .era-slope{font-family:'JetBrains Mono',monospace;font-size:.85rem;color:var(--sub);margin-bottom:.75rem;}
+  .era-slope span{font-weight:700;}
+  .chow-badge{display:inline-flex;align-items:center;gap:.5rem;background:rgba(249,115,22,.1);border:1px solid rgba(249,115,22,.3);color:var(--orange);font-family:'JetBrains Mono',monospace;font-size:.72rem;padding:.5rem 1rem;border-radius:999px;margin-top:1rem;}
+  /* FLIP CARDS */
+  .flip-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:1.25rem;margin-top:2.5rem;}
+  .flip-wrap{perspective:1000px;height:220px;}
+  .flip-card{position:relative;width:100%;height:100%;transform-style:preserve-3d;transition:transform .6s cubic-bezier(.4,0,.2,1);cursor:pointer;}
+  .flip-wrap:hover .flip-card,.flip-card.flipped{transform:rotateY(180deg);}
+  .flip-face{position:absolute;inset:0;backface-visibility:hidden;border-radius:16px;padding:1.75rem;display:flex;flex-direction:column;justify-content:center;}
+  .flip-front{background:var(--bg2);border:1px solid var(--border);}
+  .flip-back{background:var(--bg3);border:1px solid var(--orange);transform:rotateY(180deg);}
+  .flip-tag{font-family:'JetBrains Mono',monospace;font-size:.62rem;letter-spacing:.2em;text-transform:uppercase;color:var(--sub);margin-bottom:.75rem;}
+  .flip-myth{font-family:'Bebas Neue',sans-serif;font-size:1.5rem;line-height:1.2;color:var(--text);margin-bottom:.75rem;}
+  .flip-hint{font-size:.72rem;color:var(--sub);font-style:italic;}
+  .flip-verdict{font-size:.88rem;line-height:1.6;color:var(--sub);}
+  .flip-verdict strong{color:var(--green);}
+  /* DID YOU KNOW */
+  .dyk-wrap{background:var(--bg2);border:1px solid var(--border);border-radius:20px;padding:3rem;text-align:center;position:relative;overflow:hidden;margin-top:2.5rem;}
+  .dyk-wrap::before{content:'?';font-family:'Bebas Neue',sans-serif;font-size:20rem;position:absolute;right:-3rem;top:-4rem;color:var(--green);opacity:.03;pointer-events:none;line-height:1;}
+  .dyk-num{font-family:'Bebas Neue',sans-serif;font-size:clamp(3rem,8vw,7rem);color:var(--green);line-height:1;transition:all .4s ease;margin-bottom:.5rem;}
+  .dyk-text{font-size:1rem;color:var(--sub);max-width:500px;margin:0 auto 1.5rem;line-height:1.7;transition:all .4s ease;}
+  .dyk-tag{font-family:'JetBrains Mono',monospace;font-size:.65rem;color:var(--sub);letter-spacing:.15em;margin-bottom:2rem;}
+  .dyk-btn{background:transparent;border:1px solid var(--border);color:var(--text);font-family:'JetBrains Mono',monospace;font-size:.78rem;letter-spacing:.1em;padding:.75rem 1.75rem;border-radius:999px;cursor:pointer;transition:border-color .2s,color .2s;}
+  .dyk-btn:hover{border-color:var(--green);color:var(--green);}
+  /* ECONOMETRICS */
+  .diag-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:1px;background:var(--border);border:1px solid var(--border);border-radius:16px;overflow:hidden;margin-top:2.5rem;}
+  .diag-item{background:var(--bg2);padding:1.5rem;}
+  .diag-icon{font-size:1.5rem;margin-bottom:.75rem;}
+  .diag-label{font-family:'JetBrains Mono',monospace;font-size:.65rem;letter-spacing:.15em;text-transform:uppercase;color:var(--sub);margin-bottom:.5rem;}
+  .diag-result{font-family:'Bebas Neue',sans-serif;font-size:1.4rem;color:var(--green);line-height:1;margin-bottom:.5rem;}
+  .diag-result.confirmed{color:var(--green);}
+  .diag-plain{font-size:.8rem;color:var(--sub);line-height:1.6;}
+  /* TOP PERFORMERS TABLE */
+  .results-table{width:100%;border-collapse:collapse;font-size:.88rem;margin-top:2rem;}
+  .results-table th{text-align:left;padding:.75rem 1rem;font-size:.68rem;letter-spacing:.15em;text-transform:uppercase;color:var(--sub);border-bottom:1px solid var(--border);}
+  .results-table td{padding:.85rem 1rem;border-bottom:1px solid var(--border);color:var(--text);}
+  .results-table tr:last-child td{border-bottom:none;}
+  .results-table tr:hover td{background:var(--bg3);}
+  .rank-badge{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;background:var(--green);color:var(--bg);font-size:.72rem;font-weight:700;}
+  .tag{font-family:'JetBrains Mono',monospace;font-size:.82rem;}
+  /* FOOTER */
+  footer{border-top:1px solid var(--border);padding:3rem 2rem;text-align:center;font-size:.78rem;color:var(--sub);max-width:1100px;margin:0 auto;}
+  footer strong{color:var(--text);}
+  /* ANIMATIONS */
+  @keyframes fadeUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:none}}
+  @keyframes pulse{0%,100%{opacity:.4}50%{opacity:1}}
+  .reveal{opacity:0;transform:translateY(24px);transition:opacity .6s ease,transform .6s ease;}
+  .reveal.visible{opacity:1;transform:none;}
+  @media(max-width:640px){.era-split{grid-template-columns:1fr;}.hero-stats{gap:1.5rem;flex-wrap:wrap;justify-content:center;}}
+</style>
+</head>
+<body>
+<!--INJECT_BODY-->
+<script>  // scroll reveal
+  const obs = new IntersectionObserver((entries) => {
+    entries.forEach((e, i) => {
+      if (e.isIntersecting) {
+        setTimeout(() => e.target.classList.add('visible'), i * 60);
+        obs.unobserve(e.target);
+      }
+    });
+  }, { threshold: 0.1 });
+  document.querySelectorAll('.reveal').forEach(el => obs.observe(el));
+
+  // flip cards — also toggle on click for mobile
+  document.querySelectorAll('.flip-card').forEach(card => {
+    card.addEventListener('click', () => card.classList.toggle('flipped'));
+  });
+
+  // Did You Know shuffler
+  const facts = [
+    { num: "50.5%", text: "Toss win rate. Barely better than the coin itself.", tag: "1,218 matches · all seasons" },
+    { num: "6.99", text: "Over 7 RPO. Cheaper than the opening over (7.74). The free wicket nobody takes.", tag: "over-level analysis" },
+    { num: "9.4%", text: "The swing in win probability from one toss decision. Bat: 44.3%. Field: 53.7%.", tag: "toss decision analysis" },
+    { num: "p = 0.003", text: "The Chow test p-value. The 2022 scoring break is statistically confirmed.", tag: "structural break test" },
+    { num: "1.77", text: "RPO gap in death overs between winners and losers. The powerplay gap: 0.95.", tag: "phase analysis" },
+    { num: "+0.023", text: "First-order autocorrelation within matches. Momentum is not vibes — it's in the data.", tag: "AC₁ · p < 0.0001" },
+    { num: "+0.32/yr", text: "Post-2022 scoring acceleration. Pre-2022 it was +0.04 RPO per year.", tag: "structural break · Chow" },
+    { num: "60%", text: "CSK win rate after winning toss. Bat OR field. Exact same number both ways.", tag: "CSK all-seasons" },
+    { num: "26 of 78", text: "Death Finishers in the batter archetype map — the rarest class: Anchors (14).", tag: "UMAP + KMeans · 2021–25" },
+    { num: "~6", text: "Matches SRH left on the table by batting too often after winning the toss.", tag: "SRH toss counterfactual" },
+    { num: "~175", text: "The real tipping point for chase difficulty. Not 200. Chasing 160s is 50/50.", tag: "chase wall analysis" },
+    { num: "289,673", text: "Balls in the dataset. Every number on this page came from one of them.", tag: "Cricsheet · CC-BY-SA-4.0" },
+  ];
+  let fi = 0;
+  function showFact(i) {
+    const el_n = document.getElementById('dyk-num');
+    const el_t = document.getElementById('dyk-text');
+    const el_tag = document.getElementById('dyk-tag');
+    el_n.style.opacity = 0; el_t.style.opacity = 0;
+    setTimeout(() => {
+      el_n.textContent  = facts[i].num;
+      el_t.textContent  = facts[i].text;
+      el_tag.textContent = facts[i].tag;
+      el_n.style.opacity = 1; el_t.style.opacity = 1;
+    }, 300);
+  }
+  document.getElementById('dyk-btn').addEventListener('click', () => {
+    fi = (fi + 1) % facts.length;
+    showFact(fi);
+  });
+  setInterval(() => { fi = (fi + 1) % facts.length; showFact(fi); }, 6000);
+
+  // animated counters
+  function animateCount(el) {
+    const target = parseFloat(el.dataset.target);
+    const dec    = parseInt(el.dataset.dec || 0);
+    const dur    = 1400;
+    const step   = 16;
+    const steps  = dur / step;
+    let cur = 0; let tick = 0;
+    const t = setInterval(() => {
+      tick++;
+      cur = target * (tick / steps);
+      el.textContent = cur.toFixed(dec);
+      if (tick >= steps) { el.textContent = target.toFixed(dec); clearInterval(t); }
+    }, step);
+  }
+  const cntObs = new IntersectionObserver((entries) => {
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        e.target.querySelectorAll('[data-target]').forEach(animateCount);
+        cntObs.unobserve(e.target);
+      }
+    });
+  }, { threshold: 0.3 });
+  document.querySelectorAll('.era-box').forEach(el => cntObs.observe(el));
+</script>
+</body>
+</html>

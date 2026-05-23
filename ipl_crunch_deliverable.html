@@ -3,699 +3,289 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>IPL Crunch '26 — What The Data Actually Says</title>
-<style>
-  @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;700&display=swap');
-
-  :root {
-    --bg:        #08090d;
-    --bg2:       #0f1117;
-    --bg3:       #161b22;
-    --border:    #21262d;
-    --text:      #e6edf3;
-    --sub:       #8b949e;
-    --green:     #1db954;
-    --red:       #ff4b4b;
-    --orange:    #f97316;
-    --blue:      #3a86ff;
-    --yellow:    #ffbe0b;
-    --pink:      #ff006e;
-    --white:     #ffffff;
-  }
-
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-
-  body {
-    background: var(--bg);
-    color: var(--text);
-    font-family: 'Inter', sans-serif;
-    overflow-x: hidden;
-  }
-
-  /* ── HERO ── */
-  .hero {
-    min-height: 100vh;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
-    text-align: center;
-    padding: 2rem;
-    position: relative;
-    overflow: hidden;
-  }
-
-  .hero::before {
-    content: '';
-    position: absolute;
-    inset: 0;
-    background:
-      radial-gradient(ellipse 80% 50% at 50% -20%, rgba(29,185,84,0.12) 0%, transparent 70%),
-      radial-gradient(ellipse 60% 40% at 80% 80%, rgba(58,134,255,0.08) 0%, transparent 60%);
-    pointer-events: none;
-  }
-
-  .hero-eyebrow {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.75rem;
-    letter-spacing: 0.25em;
-    color: var(--green);
-    text-transform: uppercase;
-    margin-bottom: 1.5rem;
-    opacity: 0;
-    animation: fadeUp 0.6s 0.2s forwards;
-  }
-
-  .hero-title {
-    font-family: 'Bebas Neue', sans-serif;
-    font-size: clamp(3.5rem, 10vw, 9rem);
-    line-height: 0.9;
-    letter-spacing: 0.02em;
-    margin-bottom: 1.5rem;
-    opacity: 0;
-    animation: fadeUp 0.7s 0.35s forwards;
-  }
-
-  .hero-title span { color: var(--green); }
-
-  .hero-sub {
-    font-size: 1.1rem;
-    color: var(--sub);
-    max-width: 560px;
-    line-height: 1.7;
-    margin-bottom: 3rem;
-    opacity: 0;
-    animation: fadeUp 0.7s 0.5s forwards;
-  }
-
-  .hero-stats {
-    display: flex;
-    gap: 3rem;
-    opacity: 0;
-    animation: fadeUp 0.7s 0.65s forwards;
-  }
-
-  .hero-stat { text-align: center; }
-  .hero-stat-n {
-    font-family: 'Bebas Neue', sans-serif;
-    font-size: 2.4rem;
-    color: var(--white);
-    line-height: 1;
-  }
-  .hero-stat-l {
-    font-size: 0.72rem;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    color: var(--sub);
-    margin-top: 0.3rem;
-  }
-
-  .scroll-hint {
-    position: absolute;
-    bottom: 2rem;
-    left: 50%;
-    transform: translateX(-50%);
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 0.5rem;
-    color: var(--sub);
-    font-size: 0.72rem;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    opacity: 0;
-    animation: fadeUp 0.7s 1s forwards;
-  }
-  .scroll-hint::after {
-    content: '';
-    width: 1px;
-    height: 40px;
-    background: linear-gradient(to bottom, var(--sub), transparent);
-    animation: pulse 2s infinite;
-  }
-
-  /* ── SECTION WRAPPER ── */
-  .section {
-    max-width: 1100px;
-    margin: 0 auto;
-    padding: 5rem 2rem;
-  }
-
-  .section-label {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.68rem;
-    letter-spacing: 0.3em;
-    text-transform: uppercase;
-    color: var(--green);
-    margin-bottom: 0.75rem;
-  }
-
-  .section-title {
-    font-family: 'Bebas Neue', sans-serif;
-    font-size: clamp(2.2rem, 5vw, 4rem);
-    line-height: 1;
-    margin-bottom: 3rem;
-  }
-
-  /* ── VERDICT CARDS ── */
-  .verdict-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-    gap: 1.5rem;
-  }
-
-  .verdict-card {
-    background: var(--bg2);
-    border: 1px solid var(--border);
-    border-radius: 16px;
-    padding: 2rem;
-    position: relative;
-    overflow: hidden;
-    transition: border-color 0.25s, transform 0.25s;
-  }
-
-  .verdict-card:hover {
-    border-color: var(--green);
-    transform: translateY(-3px);
-  }
-
-  .verdict-card::before {
-    content: '';
-    position: absolute;
-    top: 0; left: 0; right: 0;
-    height: 3px;
-    background: var(--accent-color, var(--green));
-  }
-
-  .card-number {
-    font-family: 'Bebas Neue', sans-serif;
-    font-size: 5rem;
-    line-height: 1;
-    color: var(--accent-color, var(--green));
-    opacity: 0.15;
-    position: absolute;
-    top: 1rem; right: 1.5rem;
-  }
-
-  .card-tag {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.62rem;
-    letter-spacing: 0.2em;
-    text-transform: uppercase;
-    color: var(--accent-color, var(--green));
-    margin-bottom: 0.75rem;
-  }
-
-  .card-headline {
-    font-family: 'Bebas Neue', sans-serif;
-    font-size: 1.8rem;
-    line-height: 1.1;
-    margin-bottom: 1rem;
-    color: var(--text);
-  }
-
-  .card-body {
-    font-size: 0.9rem;
-    line-height: 1.7;
-    color: var(--sub);
-  }
-
-  .card-body strong {
-    color: var(--text);
-    font-weight: 600;
-  }
-
-  .stat-pill {
-    display: inline-block;
-    background: rgba(29,185,84,0.12);
-    border: 1px solid rgba(29,185,84,0.25);
-    color: var(--green);
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.78rem;
-    padding: 0.25rem 0.65rem;
-    border-radius: 999px;
-    margin: 0.25rem 0.15rem;
-    white-space: nowrap;
-  }
-  .stat-pill.red   { background:rgba(255,75,75,0.12);  border-color:rgba(255,75,75,0.25);  color:var(--red); }
-  .stat-pill.orange{ background:rgba(249,115,22,0.12); border-color:rgba(249,115,22,0.25); color:var(--orange); }
-  .stat-pill.blue  { background:rgba(58,134,255,0.12); border-color:rgba(58,134,255,0.25); color:var(--blue); }
-  .stat-pill.yellow{ background:rgba(255,190,11,0.12); border-color:rgba(255,190,11,0.25); color:var(--yellow); }
-
-  /* ── COUNTERFACTUAL BLOCK ── */
-  .cf-block {
-    background: var(--bg2);
-    border: 1px solid var(--border);
-    border-radius: 20px;
-    padding: 2.5rem;
-    margin-bottom: 2rem;
-    position: relative;
-    overflow: hidden;
-  }
-
-  .cf-block::after {
-    content: 'WHAT IF?';
-    font-family: 'Bebas Neue', sans-serif;
-    font-size: 8rem;
-    position: absolute;
-    right: -1rem;
-    bottom: -1.5rem;
-    color: var(--orange);
-    opacity: 0.04;
-    pointer-events: none;
-    line-height: 1;
-  }
-
-  .cf-match {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.7rem;
-    letter-spacing: 0.2em;
-    text-transform: uppercase;
-    color: var(--orange);
-    margin-bottom: 0.75rem;
-  }
-
-  .cf-title {
-    font-family: 'Bebas Neue', sans-serif;
-    font-size: 2.2rem;
-    line-height: 1.1;
-    margin-bottom: 1.5rem;
-  }
-
-  .cf-row {
-    display: flex;
-    gap: 1rem;
-    margin-bottom: 1.5rem;
-    flex-wrap: wrap;
-  }
-
-  .cf-box {
-    flex: 1;
-    min-width: 180px;
-    background: var(--bg3);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 1.25rem;
-  }
-
-  .cf-box.highlight {
-    border-color: var(--orange);
-    background: rgba(249,115,22,0.06);
-  }
-
-  .cf-box-label {
-    font-size: 0.7rem;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    color: var(--sub);
-    margin-bottom: 0.5rem;
-  }
-
-  .cf-box-val {
-    font-family: 'Bebas Neue', sans-serif;
-    font-size: 2.8rem;
-    line-height: 1;
-    color: var(--text);
-  }
-
-  .cf-box.highlight .cf-box-val { color: var(--orange); }
-
-  .cf-box-desc {
-    font-size: 0.78rem;
-    color: var(--sub);
-    margin-top: 0.4rem;
-    line-height: 1.5;
-  }
-
-  .cf-verdict {
-    font-size: 0.92rem;
-    line-height: 1.7;
-    color: var(--sub);
-    border-left: 3px solid var(--orange);
-    padding-left: 1rem;
-    margin-top: 0.5rem;
-  }
-  .cf-verdict strong { color: var(--text); }
-
-  /* ── PROBE BAR ── */
-  .probe-section { padding: 5rem 0; }
-
-  .probe-title {
-    font-family: 'Bebas Neue', sans-serif;
-    font-size: clamp(2rem, 4vw, 3.5rem);
-    margin-bottom: 2rem;
-  }
-
-  .probe-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-    gap: 1px;
-    background: var(--border);
-    border: 1px solid var(--border);
-    border-radius: 16px;
-    overflow: hidden;
-  }
-
-  .probe-item {
-    background: var(--bg2);
-    padding: 1.75rem;
-  }
-
-  .probe-q {
-    font-size: 0.78rem;
-    color: var(--sub);
-    margin-bottom: 0.75rem;
-    line-height: 1.5;
-  }
-
-  .probe-a {
-    font-family: 'Bebas Neue', sans-serif;
-    font-size: 2rem;
-    color: var(--text);
-    line-height: 1;
-    margin-bottom: 0.4rem;
-  }
-
-  .probe-context {
-    font-size: 0.72rem;
-    color: var(--sub);
-    line-height: 1.5;
-  }
-
-  /* ── TEAM CARD ROW ── */
-  .team-row {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-    gap: 1rem;
-    margin-top: 2rem;
-  }
-
-  .team-card {
-    background: var(--bg2);
-    border: 1px solid var(--border);
-    border-radius: 14px;
-    padding: 1.5rem;
-    transition: border-color 0.2s;
-  }
-
-  .team-card:hover { border-color: rgba(255,255,255,0.15); }
-
-  .team-name {
-    font-family: 'Bebas Neue', sans-serif;
-    font-size: 1.4rem;
-    margin-bottom: 1rem;
-    color: var(--text);
-  }
-
-  .bar-row {
-    margin-bottom: 0.75rem;
-  }
-
-  .bar-label {
-    display: flex;
-    justify-content: space-between;
-    font-size: 0.72rem;
-    color: var(--sub);
-    margin-bottom: 0.3rem;
-  }
-
-  .bar-label span:last-child { color: var(--text); font-weight: 600; }
-
-  .bar-track {
-    height: 6px;
-    background: var(--bg3);
-    border-radius: 999px;
-    overflow: hidden;
-  }
-
-  .bar-fill {
-    height: 100%;
-    border-radius: 999px;
-    transition: width 1.2s cubic-bezier(0.16,1,0.3,1);
-  }
-
-  /* ── BOTTOM TABLE ── */
-  .results-table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 0.88rem;
-    margin-top: 2rem;
-  }
-
-  .results-table th {
-    text-align: left;
-    padding: 0.75rem 1rem;
-    font-size: 0.68rem;
-    letter-spacing: 0.15em;
-    text-transform: uppercase;
-    color: var(--sub);
-    border-bottom: 1px solid var(--border);
-  }
-
-  .results-table td {
-    padding: 0.85rem 1rem;
-    border-bottom: 1px solid var(--border);
-    color: var(--text);
-  }
-
-  .results-table tr:last-child td { border-bottom: none; }
-
-  .results-table tr:hover td { background: var(--bg3); }
-
-  .rank-badge {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 24px; height: 24px;
-    border-radius: 50%;
-    background: var(--green);
-    color: var(--bg);
-    font-size: 0.72rem;
-    font-weight: 700;
-  }
-
-  .tag { font-family: 'JetBrains Mono', monospace; font-size: 0.82rem; }
-
-  /* ── FOOTER ── */
-  footer {
-    border-top: 1px solid var(--border);
-    padding: 3rem 2rem;
-    text-align: center;
-    font-size: 0.78rem;
-    color: var(--sub);
-    max-width: 1100px;
-    margin: 0 auto;
-  }
-
-  footer strong { color: var(--text); }
-
-  /* ── DIVIDER ── */
-  .divider {
-    height: 1px;
-    background: linear-gradient(to right, transparent, var(--border), transparent);
-    margin: 0 2rem;
-  }
-
-  /* ── ANIMATIONS ── */
-  @keyframes fadeUp {
-    from { opacity: 0; transform: translateY(20px); }
-    to   { opacity: 1; transform: translateY(0); }
-  }
-
-  @keyframes pulse {
-    0%, 100% { opacity: 0.4; }
-    50%       { opacity: 1; }
-  }
-
-  .reveal {
-    opacity: 0;
-    transform: translateY(24px);
-    transition: opacity 0.6s ease, transform 0.6s ease;
-  }
-  .reveal.visible { opacity: 1; transform: none; }
+<title>IPL Crunch '26 &mdash; What The Data Actually Says</title>
+<style>  @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;700&display=swap');
+  :root{--bg:#08090d;--bg2:#0f1117;--bg3:#161b22;--border:#21262d;--text:#e6edf3;--sub:#8b949e;--green:#1db954;--red:#ff4b4b;--orange:#f97316;--blue:#3a86ff;--yellow:#ffbe0b;--pink:#ff006e;--white:#ffffff;}
+  *{margin:0;padding:0;box-sizing:border-box;}
+  body{background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;overflow-x:hidden;}
+  /* HERO */
+  .hero{min-height:100vh;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;padding:2rem;position:relative;overflow:hidden;}
+  .hero::before{content:'';position:absolute;inset:0;background:radial-gradient(ellipse 80% 50% at 50% -20%,rgba(29,185,84,.12) 0%,transparent 70%),radial-gradient(ellipse 60% 40% at 80% 80%,rgba(58,134,255,.08) 0%,transparent 60%);pointer-events:none;}
+  .hero-eyebrow{font-family:'JetBrains Mono',monospace;font-size:.75rem;letter-spacing:.25em;color:var(--green);text-transform:uppercase;margin-bottom:1.5rem;opacity:0;animation:fadeUp .6s .2s forwards;}
+  .hero-title{font-family:'Bebas Neue',sans-serif;font-size:clamp(3.5rem,10vw,9rem);line-height:.9;letter-spacing:.02em;margin-bottom:1.5rem;opacity:0;animation:fadeUp .7s .35s forwards;}
+  .hero-title span{color:var(--green);}
+  .hero-sub{font-size:1.1rem;color:var(--sub);max-width:560px;line-height:1.7;margin-bottom:3rem;opacity:0;animation:fadeUp .7s .5s forwards;}
+  .hero-stats{display:flex;gap:3rem;opacity:0;animation:fadeUp .7s .65s forwards;}
+  .hero-stat{text-align:center;}
+  .hero-stat-n{font-family:'Bebas Neue',sans-serif;font-size:2.4rem;color:var(--white);line-height:1;}
+  .hero-stat-l{font-size:.72rem;letter-spacing:.1em;text-transform:uppercase;color:var(--sub);margin-top:.3rem;}
+  .scroll-hint{position:absolute;bottom:2rem;left:50%;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:.5rem;color:var(--sub);font-size:.72rem;letter-spacing:.1em;text-transform:uppercase;opacity:0;animation:fadeUp .7s 1s forwards;}
+  .scroll-hint::after{content:'';width:1px;height:40px;background:linear-gradient(to bottom,var(--sub),transparent);animation:pulse 2s infinite;}
+  /* LAYOUT */
+  .section{max-width:1100px;margin:0 auto;padding:5rem 2rem;}
+  .section-label{font-family:'JetBrains Mono',monospace;font-size:.68rem;letter-spacing:.3em;text-transform:uppercase;color:var(--green);margin-bottom:.75rem;}
+  .section-title{font-family:'Bebas Neue',sans-serif;font-size:clamp(2.2rem,5vw,4rem);line-height:1;margin-bottom:3rem;}
+  .divider{height:1px;background:linear-gradient(to right,transparent,var(--border),transparent);margin:0 2rem;}
+  /* VERDICT CARDS */
+  .verdict-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:1.5rem;}
+  .verdict-card{background:var(--bg2);border:1px solid var(--border);border-radius:16px;padding:2rem;position:relative;overflow:hidden;transition:border-color .25s,transform .25s;}
+  .verdict-card:hover{border-color:var(--green);transform:translateY(-3px);}
+  .verdict-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:var(--accent-color,var(--green));}
+  .card-number{font-family:'Bebas Neue',sans-serif;font-size:5rem;line-height:1;color:var(--accent-color,var(--green));opacity:.15;position:absolute;top:1rem;right:1.5rem;}
+  .card-tag{font-family:'JetBrains Mono',monospace;font-size:.62rem;letter-spacing:.2em;text-transform:uppercase;color:var(--accent-color,var(--green));margin-bottom:.75rem;}
+  .card-headline{font-family:'Bebas Neue',sans-serif;font-size:1.8rem;line-height:1.1;margin-bottom:1rem;}
+  .card-body{font-size:.9rem;line-height:1.7;color:var(--sub);}
+  .card-body strong{color:var(--text);font-weight:600;}
+  .stat-pill{display:inline-block;background:rgba(29,185,84,.12);border:1px solid rgba(29,185,84,.25);color:var(--green);font-family:'JetBrains Mono',monospace;font-size:.78rem;padding:.25rem .65rem;border-radius:999px;margin:.25rem .15rem;white-space:nowrap;}
+  .stat-pill.red{background:rgba(255,75,75,.12);border-color:rgba(255,75,75,.25);color:var(--red);}
+  .stat-pill.orange{background:rgba(249,115,22,.12);border-color:rgba(249,115,22,.25);color:var(--orange);}
+  .stat-pill.blue{background:rgba(58,134,255,.12);border-color:rgba(58,134,255,.25);color:var(--blue);}
+  .stat-pill.yellow{background:rgba(255,190,11,.12);border-color:rgba(255,190,11,.25);color:var(--yellow);}
+  /* COUNTERFACTUAL */
+  .cf-block{background:var(--bg2);border:1px solid var(--border);border-radius:20px;padding:2.5rem;margin-bottom:2rem;position:relative;overflow:hidden;}
+  .cf-block::after{content:'WHAT IF?';font-family:'Bebas Neue',sans-serif;font-size:8rem;position:absolute;right:-1rem;bottom:-1.5rem;color:var(--orange);opacity:.04;pointer-events:none;line-height:1;}
+  .cf-match{font-family:'JetBrains Mono',monospace;font-size:.7rem;letter-spacing:.2em;text-transform:uppercase;color:var(--orange);margin-bottom:.75rem;}
+  .cf-title{font-family:'Bebas Neue',sans-serif;font-size:2.2rem;line-height:1.1;margin-bottom:1.5rem;}
+  .cf-row{display:flex;gap:1rem;margin-bottom:1.5rem;flex-wrap:wrap;}
+  .cf-box{flex:1;min-width:160px;background:var(--bg3);border:1px solid var(--border);border-radius:12px;padding:1.25rem;}
+  .cf-box.highlight{border-color:var(--orange);background:rgba(249,115,22,.06);}
+  .cf-box-label{font-size:.7rem;letter-spacing:.1em;text-transform:uppercase;color:var(--sub);margin-bottom:.5rem;}
+  .cf-box-val{font-family:'Bebas Neue',sans-serif;font-size:2.8rem;line-height:1;color:var(--text);}
+  .cf-box.highlight .cf-box-val{color:var(--orange);}
+  .cf-box-desc{font-size:.78rem;color:var(--sub);margin-top:.4rem;line-height:1.5;}
+  .cf-verdict{font-size:.92rem;line-height:1.7;color:var(--sub);border-left:3px solid var(--orange);padding-left:1rem;margin-top:.5rem;}
+  .cf-verdict strong{color:var(--text);}
+  /* WIN PROB TABLE */
+  .probe-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:1px;background:var(--border);border:1px solid var(--border);border-radius:16px;overflow:hidden;}
+  .probe-item{background:var(--bg2);padding:1.75rem;}
+  .probe-q{font-size:.78rem;color:var(--sub);margin-bottom:.75rem;line-height:1.5;}
+  .probe-a{font-family:'Bebas Neue',sans-serif;font-size:2rem;color:var(--text);line-height:1;margin-bottom:.4rem;}
+  .probe-context{font-size:.72rem;color:var(--sub);line-height:1.5;}
+  /* ARCHETYPE GRID */
+  .archetype-section{padding:5rem 0;}
+  .arch-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:1.25rem;margin-top:2.5rem;}
+  .arch-card{background:var(--bg2);border:1px solid var(--border);border-radius:16px;padding:1.75rem;position:relative;overflow:hidden;transition:border-color .25s,transform .25s;}
+  .arch-card:hover{transform:translateY(-3px);}
+  .arch-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:var(--ac,var(--green));}
+  .arch-icon{font-size:2.2rem;margin-bottom:.75rem;display:block;}
+  .arch-name{font-family:'Bebas Neue',sans-serif;font-size:1.6rem;color:var(--text);margin-bottom:.4rem;}
+  .arch-sig{font-size:.82rem;color:var(--sub);line-height:1.6;margin-bottom:1rem;}
+  .arch-players{font-family:'JetBrains Mono',monospace;font-size:.72rem;color:var(--ac,var(--green));margin-bottom:.6rem;}
+  .arch-count{font-size:.68rem;letter-spacing:.1em;text-transform:uppercase;color:var(--sub);}
+  .arch-divider{font-size:.7rem;font-weight:700;letter-spacing:.2em;text-transform:uppercase;color:var(--sub);margin:2rem 0 .5rem;opacity:.6;}
+  /* ERA DIVIDE */
+  .era-split{display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;margin:2rem 0;}
+  .era-box{background:var(--bg2);border:1px solid var(--border);border-radius:16px;padding:2rem;text-align:center;}
+  .era-box.new{border-color:var(--green);background:rgba(29,185,84,.04);}
+  .era-label{font-family:'JetBrains Mono',monospace;font-size:.68rem;letter-spacing:.2em;text-transform:uppercase;color:var(--sub);margin-bottom:1rem;}
+  .era-rpo{font-family:'Bebas Neue',sans-serif;font-size:4rem;line-height:1;margin-bottom:.5rem;}
+  .era-slope{font-family:'JetBrains Mono',monospace;font-size:.85rem;color:var(--sub);margin-bottom:.75rem;}
+  .era-slope span{font-weight:700;}
+  .chow-badge{display:inline-flex;align-items:center;gap:.5rem;background:rgba(249,115,22,.1);border:1px solid rgba(249,115,22,.3);color:var(--orange);font-family:'JetBrains Mono',monospace;font-size:.72rem;padding:.5rem 1rem;border-radius:999px;margin-top:1rem;}
+  /* FLIP CARDS */
+  .flip-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:1.25rem;margin-top:2.5rem;}
+  .flip-wrap{perspective:1000px;height:220px;}
+  .flip-card{position:relative;width:100%;height:100%;transform-style:preserve-3d;transition:transform .6s cubic-bezier(.4,0,.2,1);cursor:pointer;}
+  .flip-wrap:hover .flip-card,.flip-card.flipped{transform:rotateY(180deg);}
+  .flip-face{position:absolute;inset:0;backface-visibility:hidden;border-radius:16px;padding:1.75rem;display:flex;flex-direction:column;justify-content:center;}
+  .flip-front{background:var(--bg2);border:1px solid var(--border);}
+  .flip-back{background:var(--bg3);border:1px solid var(--orange);transform:rotateY(180deg);}
+  .flip-tag{font-family:'JetBrains Mono',monospace;font-size:.62rem;letter-spacing:.2em;text-transform:uppercase;color:var(--sub);margin-bottom:.75rem;}
+  .flip-myth{font-family:'Bebas Neue',sans-serif;font-size:1.5rem;line-height:1.2;color:var(--text);margin-bottom:.75rem;}
+  .flip-hint{font-size:.72rem;color:var(--sub);font-style:italic;}
+  .flip-verdict{font-size:.88rem;line-height:1.6;color:var(--sub);}
+  .flip-verdict strong{color:var(--green);}
+  /* DID YOU KNOW */
+  .dyk-wrap{background:var(--bg2);border:1px solid var(--border);border-radius:20px;padding:3rem;text-align:center;position:relative;overflow:hidden;margin-top:2.5rem;}
+  .dyk-wrap::before{content:'?';font-family:'Bebas Neue',sans-serif;font-size:20rem;position:absolute;right:-3rem;top:-4rem;color:var(--green);opacity:.03;pointer-events:none;line-height:1;}
+  .dyk-num{font-family:'Bebas Neue',sans-serif;font-size:clamp(3rem,8vw,7rem);color:var(--green);line-height:1;transition:all .4s ease;margin-bottom:.5rem;}
+  .dyk-text{font-size:1rem;color:var(--sub);max-width:500px;margin:0 auto 1.5rem;line-height:1.7;transition:all .4s ease;}
+  .dyk-tag{font-family:'JetBrains Mono',monospace;font-size:.65rem;color:var(--sub);letter-spacing:.15em;margin-bottom:2rem;}
+  .dyk-btn{background:transparent;border:1px solid var(--border);color:var(--text);font-family:'JetBrains Mono',monospace;font-size:.78rem;letter-spacing:.1em;padding:.75rem 1.75rem;border-radius:999px;cursor:pointer;transition:border-color .2s,color .2s;}
+  .dyk-btn:hover{border-color:var(--green);color:var(--green);}
+  /* ECONOMETRICS */
+  .diag-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:1px;background:var(--border);border:1px solid var(--border);border-radius:16px;overflow:hidden;margin-top:2.5rem;}
+  .diag-item{background:var(--bg2);padding:1.5rem;}
+  .diag-icon{font-size:1.5rem;margin-bottom:.75rem;}
+  .diag-label{font-family:'JetBrains Mono',monospace;font-size:.65rem;letter-spacing:.15em;text-transform:uppercase;color:var(--sub);margin-bottom:.5rem;}
+  .diag-result{font-family:'Bebas Neue',sans-serif;font-size:1.4rem;color:var(--green);line-height:1;margin-bottom:.5rem;}
+  .diag-result.confirmed{color:var(--green);}
+  .diag-plain{font-size:.8rem;color:var(--sub);line-height:1.6;}
+  /* TOP PERFORMERS TABLE */
+  .results-table{width:100%;border-collapse:collapse;font-size:.88rem;margin-top:2rem;}
+  .results-table th{text-align:left;padding:.75rem 1rem;font-size:.68rem;letter-spacing:.15em;text-transform:uppercase;color:var(--sub);border-bottom:1px solid var(--border);}
+  .results-table td{padding:.85rem 1rem;border-bottom:1px solid var(--border);color:var(--text);}
+  .results-table tr:last-child td{border-bottom:none;}
+  .results-table tr:hover td{background:var(--bg3);}
+  .rank-badge{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;background:var(--green);color:var(--bg);font-size:.72rem;font-weight:700;}
+  .tag{font-family:'JetBrains Mono',monospace;font-size:.82rem;}
+  /* FOOTER */
+  footer{border-top:1px solid var(--border);padding:3rem 2rem;text-align:center;font-size:.78rem;color:var(--sub);max-width:1100px;margin:0 auto;}
+  footer strong{color:var(--text);}
+  /* ANIMATIONS */
+  @keyframes fadeUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:none}}
+  @keyframes pulse{0%,100%{opacity:.4}50%{opacity:1}}
+  .reveal{opacity:0;transform:translateY(24px);transition:opacity .6s ease,transform .6s ease;}
+  .reveal.visible{opacity:1;transform:none;}
+  @media(max-width:640px){.era-split{grid-template-columns:1fr;}.hero-stats{gap:1.5rem;flex-wrap:wrap;justify-content:center;}}
 </style>
 </head>
 <body>
 
-<!-- ═══ HERO ═══════════════════════════════════════════════════════ -->
+
+<!-- HERO -->
 <section class="hero">
   <p class="hero-eyebrow">Wooble · IPL Crunch '26 · Data Analytics</p>
   <h1 class="hero-title">What The Data<br><span>Actually</span> Says</h1>
   <p class="hero-sub">289,673 balls. 1,218 matches. 19 seasons. Not opinions — verdicts.</p>
   <div class="hero-stats">
-    <div class="hero-stat">
-      <div class="hero-stat-n">1,218</div>
-      <div class="hero-stat-l">Matches</div>
-    </div>
-    <div class="hero-stat">
-      <div class="hero-stat-n">289K</div>
-      <div class="hero-stat-l">Balls Analysed</div>
-    </div>
-    <div class="hero-stat">
-      <div class="hero-stat-n">19</div>
-      <div class="hero-stat-l">Seasons</div>
-    </div>
-    <div class="hero-stat">
-      <div class="hero-stat-n">7</div>
-      <div class="hero-stat-l">Verdicts</div>
-    </div>
+    <div class="hero-stat"><div class="hero-stat-n">1,218</div><div class="hero-stat-l">Matches</div></div>
+    <div class="hero-stat"><div class="hero-stat-n">289K</div><div class="hero-stat-l">Balls</div></div>
+    <div class="hero-stat"><div class="hero-stat-n">19</div><div class="hero-stat-l">Seasons</div></div>
+    <div class="hero-stat"><div class="hero-stat-n">10</div><div class="hero-stat-l">Findings</div></div>
   </div>
   <div class="scroll-hint">scroll</div>
 </section>
-
 <div class="divider"></div>
 
-<!-- ═══ THE VERDICTS ════════════════════════════════════════════════ -->
+<!-- VERDICTS -->
 <section class="section">
   <p class="section-label reveal">Analysis</p>
   <h2 class="section-title reveal">The Verdicts</h2>
-
   <div class="verdict-grid">
 
-    <div class="verdict-card reveal" style="--accent-color: var(--red)">
+    <div class="verdict-card reveal" style="--accent-color:var(--red)">
       <span class="card-number">01</span>
       <p class="card-tag">The Toss</p>
       <h3 class="card-headline">Winning The Toss Means Almost Nothing</h3>
-      <p class="card-body">
-        Toss winners win <strong>50.5%</strong> of matches — barely better than a coin flip.
-        But that headline hides everything that matters.
-        <br><br>
-        <span class="stat-pill red">Choose to BAT → 44.3% wins</span>
-        <span class="stat-pill">Choose to FIELD → 53.7% wins</span>
-        <br><br>
-        The toss itself is neutral. The <strong>decision</strong> is where the edge lives — a 9.4% swing between the right and wrong call.
+      <p class="card-body">Toss winners win <strong>50.6%</strong> of matches — barely better than a coin flip. But the decision you make with it is everything.
+      <br><br>
+      <span class="stat-pill red">Bat after winning: 44.2%</span>
+      <span class="stat-pill">Field after winning: 53.8%</span>
+      <br><br>
+      That's a <strong>9.6% swing</strong> from one call.
       </p>
     </div>
 
-    <div class="verdict-card reveal" style="--accent-color: var(--pink)">
+    <div class="verdict-card reveal" style="--accent-color:var(--pink)">
       <span class="card-number">02</span>
       <p class="card-tag">Phase Analysis</p>
       <h3 class="card-headline">Death Overs Decide Matches. Not Powerplays.</h3>
-      <p class="card-body">
-        Everyone fixates on powerplay starts. The data disagrees.
-        <br><br>
-        <span class="stat-pill blue">Powerplay gap: +0.95 RPO</span>
-        <span class="stat-pill yellow">Middle gap: +0.95 RPO</span>
-        <span class="stat-pill red">Death gap: +1.77 RPO</span>
-        <br><br>
-        Winners outscore losers by <strong>1.77 runs per over in the death</strong> — nearly twice the powerplay gap. Score 50+ in the last 3 overs: <strong>55% win rate</strong>. Score under 30: <strong>14%</strong>.
+      <p class="card-body">Everyone fixates on powerplay starts. The data disagrees.
+      <br><br>
+      <span class="stat-pill blue">PP gap: +0.94 RPO</span>
+      <span class="stat-pill red">Death gap: +1.77 RPO</span>
+      <br><br>
+      Winners outscore losers by <strong>1.77 runs per over in the death</strong> — nearly 2× the powerplay gap.
       </p>
     </div>
 
-    <div class="verdict-card reveal" style="--accent-color: var(--orange)">
+    <div class="verdict-card reveal" style="--accent-color:var(--orange)">
       <span class="card-number">03</span>
       <p class="card-tag">Hidden Pattern</p>
       <h3 class="card-headline">Over 7 Is The Free Wicket Nobody Takes</h3>
-      <p class="card-body">
-        The moment the powerplay ends, scoring collapses.
-        <br><br>
-        <span class="stat-pill">Over 6: 8.70 RPO</span>
-        <span class="stat-pill orange">Over 7: 6.99 RPO ← the dead zone</span>
-        <span class="stat-pill">Over 1: 6.29 RPO</span>
-        <br><br>
-        Over 7 is cheaper than <strong>the opening over</strong>. Captains who bowl their best spinner in the powerplay are wasting them — Over 7 is where wickets come for free.
+      <p class="card-body">The moment the powerplay ends, scoring collapses.
+      <br><br>
+      <span class="stat-pill">Over 6: 8.72 RPO</span>
+      <span class="stat-pill orange">Over 7: 7.02 RPO ← dead zone</span>
+      <span class="stat-pill">Over 1: 6.34 RPO</span>
+      <br><br>
+      Over 7 is cheaper than <strong>the opening over</strong>.
       </p>
     </div>
 
-    <div class="verdict-card reveal" style="--accent-color: var(--green)">
+    <div class="verdict-card reveal" style="--accent-color:var(--green)">
       <span class="card-number">04</span>
       <p class="card-tag">Chase Difficulty</p>
       <h3 class="card-headline">The Wall Is At 175, Not 200</h3>
-      <p class="card-body">
-        People treat 200 as the unassailable target. The real cliff is earlier.
-        <br><br>
-        <span class="stat-pill">Chasing 150s: 72% success</span>
-        <span class="stat-pill yellow">Chasing 160s: 50% — coin flip</span>
-        <span class="stat-pill red">Chasing 170s: 40%</span>
-        <span class="stat-pill red">Chasing 200+: 23%</span>
-        <br><br>
-        The tipping point is <strong>~175 runs</strong>. Every run above 170 is worth more than one below it — which makes death-over bowlers the most undervalued asset in the IPL.
+      <p class="card-body">The real cliff comes earlier than people think.
+      <br><br>
+      <span class="stat-pill">Chasing 150s: ~72%</span>
+      <span class="stat-pill yellow">Chasing 160s: ~50% — coin flip</span>
+      <span class="stat-pill red">Chasing 170s: ~40%</span>
+      <br><br>
+      Every run above 170 is worth <strong>more than one below it</strong>.
       </p>
     </div>
 
-    <div class="verdict-card reveal" style="--accent-color: var(--blue)">
+    <div class="verdict-card reveal" style="--accent-color:var(--blue)">
       <span class="card-number">05</span>
       <p class="card-tag">Momentum</p>
       <h3 class="card-headline">Momentum Is Real. Captains Ignore It.</h3>
-      <p class="card-body">
-        After a 12+ run over, the next over averages <strong>9.5 runs</strong>.
-        After a quiet (&lt;6) over, it averages <strong>7.8 runs</strong>.
-        <br><br>
-        <span class="stat-pill">Big → Big: 30.5% chance</span>
-        <span class="stat-pill red">Quiet → Big: 18.5% chance</span>
-        <br><br>
-        That's a <strong>12% momentum edge</strong> the batting side carries into the next over. A captain who doesn't change their bowling after conceding 15 is making a statistically measurable mistake.
+      <p class="card-body">After a 12+ run over, the next over averages <strong>9.5 runs</strong>. After a quiet (&lt;6) over: <strong>7.8 runs</strong>.
+      <br><br>
+      <span class="stat-pill">Big→Big: 31%</span>
+      <span class="stat-pill red">Quiet→Big: 19%</span>
+      <br><br>
+      That's a <strong>12% momentum edge</strong> the batting side carries.
       </p>
     </div>
 
-    <div class="verdict-card reveal" style="--accent-color: var(--yellow)">
+    <div class="verdict-card reveal" style="--accent-color:var(--yellow)">
       <span class="card-number">06</span>
       <p class="card-tag">Era Shift</p>
-      <h3 class="card-headline">Pre-2022 IPL Records Are In A Different Sport</h3>
-      <p class="card-body">
-        The scoring acceleration since 2022 has been historic.
-        <br><br>
-        <span class="stat-pill">2008: 8.31 RPO · 10.7 sixes/match</span>
-        <span class="stat-pill yellow">2026: 9.81 RPO · 18.7 sixes/match</span>
-        <br><br>
-        Sixes <strong>nearly doubled</strong>. Kohli's record 973-run season in 2016 was set when 8.3 RPO was elite. Today that's below average. <strong>Context is everything</strong> when comparing across eras.
+      <h3 class="card-headline">Pre-2022 IPL Is A Different Sport</h3>
+      <p class="card-body">The scoring acceleration since 2022 has been historic.
+      <br><br>
+      <span class="stat-pill">2008: 8.31 RPO · 11 sixes/match</span>
+      <span class="stat-pill yellow">2026: 9.84 RPO · 19 sixes/match</span>
+      <br><br>
+      Sixes <strong>nearly doubled</strong>. Pre-2022 batting records are a different conversation.
       </p>
     </div>
 
-    <div class="verdict-card reveal" style="--accent-color: var(--green); grid-column: 1 / -1; max-width: 500px;">
+    <div class="verdict-card reveal" style="--accent-color:var(--green);grid-column:1/-1;max-width:500px;">
       <span class="card-number">07</span>
       <p class="card-tag">CSK Anomaly</p>
-      <h3 class="card-headline">CSK Win The Toss At 60% — Regardless Of What They Choose</h3>
+      <h3 class="card-headline">CSK Win 59% Of Tosses. Always.</h3>
       <p class="card-body">
-        When CSK wins the toss and <strong>bats</strong>: they win 60.0% of the time.<br>
-        When CSK wins the toss and <strong>fields</strong>: they win 60.0% of the time.<br><br>
-        Exact same number. CSK's toss advantage isn't about the coin — it's about their ability to execute either way. That's not luck. That's culture.
+      Win toss + choose <strong>bat</strong>: 59%&nbsp; win.<br>
+      Win toss + choose <strong>field</strong>: 59%&nbsp; win.<br><br>
+      Exact same number. It's not the coin — it's the culture.
       </p>
     </div>
 
   </div>
 </section>
-
 <div class="divider"></div>
 
-<!-- ═══ COUNTERFACTUALS ════════════════════════════════════════════ -->
+<!-- COUNTERFACTUALS -->
 <section class="section">
   <p class="section-label reveal">What-If Analysis</p>
-  <h2 class="section-title reveal">The Counterfactuals</h2>
-  <p class="reveal" style="color:var(--sub);font-size:0.95rem;margin-bottom:3rem;max-width:600px;line-height:1.7;">
-    Using 1,218 matches of historical win probability data, we can ask: if one decision had been different, what would the numbers say?
-  </p>
+  <h2 class="section-title reveal">The Butterfly Effect</h2>
+  <p class="reveal" style="color:var(--sub);font-size:.95rem;margin-bottom:3rem;max-width:600px;line-height:1.7;">Using 1,235 matches of historical win probability data, we can ask: if one thing had been different, what changes?</p>
 
   <!-- 2019 FINAL -->
   <div class="cf-block reveal">
-    <p class="cf-match">IPL 2019 Final  ·  May 12, 2019  ·  Hyderabad</p>
+    <p class="cf-match">IPL 2019 Final · May 12, 2019 · Hyderabad</p>
     <h3 class="cf-title">MI vs CSK — Won By 1 Run.<br>The Closest Possible Margin.</h3>
     <div class="cf-row">
       <div class="cf-box">
-        <div class="cf-box-label">MI Actual Score</div>
+        <div class="cf-box-label">MI Actual</div>
         <div class="cf-box-val">149</div>
-        <div class="cf-box-desc">PP: 45 · Mid: 57 · Death: 47<br>Historical win rate at 149: <strong style="color:var(--text)">28%</strong></div>
+        <div class="cf-box-desc">Historical win rate: <strong style="color:var(--text)">27%</strong></div>
       </div>
       <div class="cf-box highlight">
-        <div class="cf-box-label">If MI scored 10 more in death</div>
+        <div class="cf-box-label">If MI scored +10 in death</div>
         <div class="cf-box-val">159</div>
-        <div class="cf-box-desc">Win probability jumps<br><strong>28% → 37%</strong> — a 9-point swing from 10 runs</div>
+        <div class="cf-box-desc">Win rate: <strong>27% → 37%</strong></div>
       </div>
       <div class="cf-box">
-        <div class="cf-box-label">CSK's Watson scored</div>
-        <div class="cf-box-val">80</div>
-        <div class="cf-box-desc">If dismissed for 30 (CSK ~108)<br>CSK win probability: <strong style="color:var(--text)">6%</strong></div>
+        <div class="cf-box-label">Watson dismissed for 30</div>
+        <div class="cf-box-val">~108</div>
+        <div class="cf-box-desc">CSK win chance collapses to <strong style="color:var(--red)">94%</strong></div>
       </div>
     </div>
     <p class="cf-verdict">
-      <strong>The verdict:</strong> Watson single-handedly took CSK from a 6% win chance to 48%. And MI won despite a below-average batting-first win rate (28%) at 149 — because they held their nerve in the last over. The entire final balanced on 10 death-over runs and one batter's innings.
+      <strong>Archetype layer:</strong> Watson is pre-2021 era, but the CSK 2019 XI had just 1 Death Finisher-class batter among those traceable in the 2021–25 data.
+      Anchor-class batters cannot sustain 14+ RPO in death overs — that's why the chase stalled at 148. One player's archetype decided a final.
     </p>
   </div>
 
   <!-- SRH TOSS -->
   <div class="cf-block reveal">
-    <p class="cf-match">SRH  ·  All Seasons  ·  Toss Decision Analysis</p>
-    <h3 class="cf-title">SRH Lost ~6 Matches<br>By Choosing To Bat Too Often.</h3>
+    <p class="cf-match">SRH · All Seasons · Toss Decision Analysis</p>
+    <h3 class="cf-title">SRH Left ~5 Matches<br>On The Table.</h3>
     <div class="cf-row">
       <div class="cf-box">
         <div class="cf-box-label">Won toss, chose BAT</div>
@@ -704,121 +294,626 @@
       </div>
       <div class="cf-box highlight">
         <div class="cf-box-label">Won toss, chose FIELD</div>
-        <div class="cf-box-val">59</div>
-        <div class="cf-box-desc">Win rate: <strong style="color:var(--green)">49.2%</strong></div>
+        <div class="cf-box-val">60</div>
+        <div class="cf-box-desc">Win rate: <strong style="color:var(--green)">48.3%</strong></div>
       </div>
       <div class="cf-box">
         <div class="cf-box-label">Matches left on table</div>
-        <div class="cf-box-val">~6</div>
-        <div class="cf-box-desc">Estimated wins lost by<br>over-choosing to bat</div>
+        <div class="cf-box-val">~5</div>
+        <div class="cf-box-desc">Correctable strategic bias.<br>Not bad luck.</div>
       </div>
     </div>
-    <p class="cf-verdict">
-      <strong>The verdict:</strong> SRH's 15% win-rate gap between batting and fielding is the largest of any major franchise. This isn't bad luck — it's a correctable strategic bias. Six matches over a career isn't a small number.
-    </p>
+    <p class="cf-verdict"><strong>The verdict:</strong> 34% when batting vs 48% when fielding — a 14-point gap from one decision. Every playoff race has been this close.</p>
+  </div>
+
+  <!-- OVER 7 TRAP -->
+  <div class="cf-block reveal">
+    <p class="cf-match">Every Team · Every Season · Over 7</p>
+    <h3 class="cf-title">The Over 7 Trap:<br>A Free Wicket Nobody Claimed.</h3>
+    <div class="cf-row">
+      <div class="cf-box"><div class="cf-box-label">Over 6 (last PP over)</div><div class="cf-box-val">8.72</div><div class="cf-box-desc">RPO · field restrictions on</div></div>
+      <div class="cf-box highlight"><div class="cf-box-label">Over 7 (dead zone)</div><div class="cf-box-val">7.02</div><div class="cf-box-desc">RPO · cheaper than Over 1</div></div>
+      <div class="cf-box"><div class="cf-box-label">Scoring drop</div><div class="cf-box-val">1.70</div><div class="cf-box-desc">RPO fall-off from over 6→7</div></div>
+    </div>
+    <p class="cf-verdict"><strong>If every team bowled their best spinner in over 7 instead of 5:</strong> they'd save ~0.71 runs on average and face a batting team still resetting after powerplay restrictions lifted. The over exists. Nobody uses it.</p>
+  </div>
+
+  <!-- ERA PROJECTION -->
+  <div class="cf-block reveal">
+    <p class="cf-match">Kohli's 2016 Season · Era-Adjusted</p>
+    <h3 class="cf-title">What Would Kohli's Record Season<br>Look Like In 2026?</h3>
+    <div class="cf-row">
+      <div class="cf-box"><div class="cf-box-label">2016 actual</div><div class="cf-box-val">973</div><div class="cf-box-desc">runs · RPO era: 8.41</div></div>
+      <div class="cf-box highlight"><div class="cf-box-label">Era-adjusted to 2026</div><div class="cf-box-val">~850</div><div class="cf-box-desc">equivalent difficulty-adjusted runs</div></div>
+      <div class="cf-box"><div class="cf-box-label">Raw projection</div><div class="cf-box-val">~1,135</div><div class="cf-box-desc">if today's balls/match rate applied</div></div>
+    </div>
+    <p class="cf-verdict"><strong>The record stands. But context shifts everything.</strong> At 8.31 RPO (2008) vs 9.84 RPO (2026), facing the same deliveries produces ~18% more runs by default. Cross-era comparisons need an asterisk.</p>
   </div>
 
 </section>
-
 <div class="divider"></div>
 
-<!-- ═══ DEATH OVER WIN PROBABILITY ════════════════════════════════ -->
-<section class="section probe-section">
+<!-- WIN PROBABILITY -->
+<section class="section">
   <p class="section-label reveal">Win Probability Model</p>
-  <h2 class="probe-title reveal">Death Over Score → Win Probability</h2>
-  <p class="reveal" style="color:var(--sub);font-size:0.9rem;margin-bottom:2rem;">Based on historical outcomes. Batting first.</p>
+  <h2 class="section-title reveal">Death Score → Win Probability</h2>
+  <p class="reveal" style="color:var(--sub);font-size:.9rem;margin-bottom:2rem;">Batting first. Historical outcomes. The breakeven is ~55 runs in the death.</p>
   <div class="probe-grid reveal">
-    <div class="probe-item">
-      <div class="probe-q">Death score ~30 runs</div>
-      <div class="probe-a" style="color:var(--red)">25%</div>
-      <div class="probe-context">Win rate  ·  already fighting uphill</div>
+    <div class="probe-item"><div class="probe-q">Death ~30 runs</div><div class="probe-a" style="color:var(--red)">25%</div><div class="probe-context">already fighting uphill</div></div>
+    <div class="probe-item"><div class="probe-q">Death ~40 runs</div><div class="probe-a" style="color:var(--red)">36%</div><div class="probe-context">still below 50/50</div></div>
+    <div class="probe-item"><div class="probe-q">Death ~50 runs</div><div class="probe-a" style="color:var(--yellow)">43%</div><div class="probe-context">approaching the wall</div></div>
+    <div class="probe-item"><div class="probe-q">Death ~60 runs</div><div class="probe-a" style="color:var(--yellow)">51%</div><div class="probe-context">flips to slight favourite</div></div>
+    <div class="probe-item"><div class="probe-q">Death ~70 runs</div><div class="probe-a" style="color:var(--green)">67%</div><div class="probe-context">clear favourite territory</div></div>
+    <div class="probe-item"><div class="probe-q">Death ~80 runs</div><div class="probe-a" style="color:var(--green)">71%</div><div class="probe-context">dominant. 7 in 10 wins.</div></div>
+  </div>
+</section>
+<div class="divider"></div>
+
+<!-- PLAYER DNA -->
+<section class="section archetype-section">
+  <p class="section-label reveal">UMAP + KMeans · IPL 2021–25</p>
+  <h2 class="section-title reveal">Every Player Has A Type</h2>
+  <p class="reveal" style="color:var(--sub);font-size:.9rem;margin-bottom:.5rem;">12 batting dimensions · 11 bowling dimensions · reduced to 2D · 4 clusters each.</p>
+  <p class="reveal" style="color:var(--sub);font-size:.85rem;margin-bottom:0;">Hover a card to see what defines each archetype.</p>
+
+  <p class="arch-divider reveal">⚡ BATTERS (78 players)</p>
+  <div class="arch-grid reveal">
+    <div class="arch-card" style="--ac:var(--blue)">
+      <span class="arch-icon">🏔️</span>
+      <div class="arch-name">Anchor</div>
+      <div class="arch-sig">High average. Low dot-ball rate. Plays for the long innings, not the six. Gets out bowled or lbw — they play straight.</div>
+      <div class="arch-players">Dhawan · Warner · Bairstow</div>
+      <div class="arch-count">14 of 78 batters</div>
     </div>
-    <div class="probe-item">
-      <div class="probe-q">Death score ~40 runs</div>
-      <div class="probe-a" style="color:var(--red)">36%</div>
-      <div class="probe-context">Still below 50/50</div>
+    <div class="arch-card" style="--ac:var(--red)">
+      <span class="arch-icon">💥</span>
+      <div class="arch-name">Aggressor</div>
+      <div class="arch-sig">Highest boundary%. Goes hard in all phases. Consistency is not the priority — damage is.</div>
+      <div class="arch-players">David · Karthik · Stubbs</div>
+      <div class="arch-count">17 of 78 batters</div>
     </div>
-    <div class="probe-item">
-      <div class="probe-q">Death score ~50 runs</div>
-      <div class="probe-a" style="color:var(--yellow)">43%</div>
-      <div class="probe-context">Approaching the wall</div>
+    <div class="arch-card" style="--ac:var(--pink)">
+      <span class="arch-icon">☠️</span>
+      <div class="arch-name">Death Finisher</div>
+      <div class="arch-sig">Peaks in overs 16–20. SR jumps 30+ points in the death phase. Built for the final five overs.</div>
+      <div class="arch-players">Jacks · Rahane · Kock</div>
+      <div class="arch-count">26 of 78 batters</div>
     </div>
-    <div class="probe-item">
-      <div class="probe-q">Death score ~60 runs</div>
-      <div class="probe-a" style="color:var(--yellow)">51%</div>
-      <div class="probe-context">Flips to slight favourite</div>
+    <div class="arch-card" style="--ac:var(--green)">
+      <span class="arch-icon">⚡</span>
+      <div class="arch-name">Powerplay Enforcer</div>
+      <div class="arch-sig">Highest SR in overs 1–6. The one you need at the top when restrictions are on. Fades in the middle.</div>
+      <div class="arch-players">Russell · Head · Salt</div>
+      <div class="arch-count">21 of 78 batters</div>
     </div>
-    <div class="probe-item">
-      <div class="probe-q">Death score ~70 runs</div>
-      <div class="probe-a" style="color:var(--green)">66%</div>
-      <div class="probe-context">Clear favourite territory</div>
+  </div>
+
+  <p class="arch-divider reveal">🎯 BOWLERS (144 players)</p>
+  <div class="arch-grid reveal">
+    <div class="arch-card" style="--ac:var(--pink)">
+      <span class="arch-icon">🗡️</span>
+      <div class="arch-name">Death Specialist</div>
+      <div class="arch-sig">Lowest economy in overs 16–20. The one you call at 18.3 with 12 to defend. Rarest, most valuable.</div>
+      <div class="arch-players">Roy · Yadav · Christian</div>
+      <div class="arch-count">16 of 144 bowlers</div>
     </div>
-    <div class="probe-item">
-      <div class="probe-q">Death score ~80 runs</div>
-      <div class="probe-a" style="color:var(--green)">71%</div>
-      <div class="probe-context">Dominant. 7 in 10 matches won.</div>
+    <div class="arch-card" style="--ac:var(--green)">
+      <span class="arch-icon">⚡</span>
+      <div class="arch-name">Powerplay Enforcer</div>
+      <div class="arch-sig">Best economy in overs 1–6. Takes wickets when the field is up. Sets the tone before the middle overs.</div>
+      <div class="arch-players">Ali · Hooda · Chahar</div>
+      <div class="arch-count">36 of 144 bowlers</div>
+    </div>
+    <div class="arch-card" style="--ac:var(--orange)">
+      <span class="arch-icon">🌀</span>
+      <div class="arch-name">Wicket-taking Spinner</div>
+      <div class="arch-sig">High stumped%. Beats the batter in the air and off the pitch. Middle-overs pressure specialist.</div>
+      <div class="arch-players">Livingstone · Sharma · Russell</div>
+      <div class="arch-count">34 of 144 bowlers</div>
+    </div>
+    <div class="arch-card" style="--ac:var(--yellow)">
+      <span class="arch-icon">🛡️</span>
+      <div class="arch-name">Containment Bowler</div>
+      <div class="arch-sig">Lowest economy across all phases. Won't take many wickets. Will keep the scoring rate honest every over.</div>
+      <div class="arch-players">Yadav · Ashwin · Bravo</div>
+      <div class="arch-count">58 of 144 bowlers</div>
     </div>
   </div>
 </section>
-
 <div class="divider"></div>
 
-<!-- ═══ TOP PERFORMERS ═══════════════════════════════════════════ -->
+<!-- ERA DIVIDE -->
+<section class="section">
+  <p class="section-label reveal">Structural Break · Chow Test</p>
+  <h2 class="section-title reveal">IPL Has Two Timelines</h2>
+  <p class="reveal" style="color:var(--sub);font-size:.9rem;margin-bottom:2rem;">The scoring shift post-2022 isn't a vibe — it's a statistically confirmed break in the time series.</p>
+  <div class="era-split reveal">
+    <div class="era-box">
+      <div class="era-label">2008 – 2021 Era</div>
+      <div class="era-rpo" style="color:var(--sub)" data-target="8.31" data-dec="2">8.31</div>
+      <div style="color:var(--sub);font-size:.85rem;margin-bottom:.5rem;">RPO average</div>
+      <div class="era-slope">Trend: <span style="color:var(--text)">+0.043 RPO/yr</span> — gradual climb</div>
+      <div style="font-size:.8rem;color:var(--sub);">11 sixes/match (2008) → slowly rising</div>
+    </div>
+    <div class="era-box new">
+      <div class="era-label">2022 – 2026 Era</div>
+      <div class="era-rpo" style="color:var(--green)" data-target="9.84" data-dec="2">9.84</div>
+      <div style="color:var(--sub);font-size:.85rem;margin-bottom:.5rem;">RPO average</div>
+      <div class="era-slope">Trend: <span style="color:var(--green)">+0.323 RPO/yr</span> — nearly 8× faster</div>
+      <div style="font-size:.8rem;color:var(--sub);">19 sixes/match — almost double 2008</div>
+    </div>
+  </div>
+  <div style="text-align:center" class="reveal">
+    <span class="chow-badge">⚗ Chow F = 9.42 · p = 0.0022 · break CONFIRMED at 2022</span>
+  </div>
+</section>
+<div class="divider"></div>
+
+<!-- MYTHS KILLED -->
+<section class="section">
+  <p class="section-label reveal">Common Wisdom vs Data</p>
+  <h2 class="section-title reveal">Myths The Numbers Killed</h2>
+  <p class="reveal" style="color:var(--sub);font-size:.85rem;margin-bottom:.5rem;">Hover each card to see what the data actually says.</p>
+  <div class="flip-grid reveal">
+
+    <div class="flip-wrap">
+      <div class="flip-card">
+        <div class="flip-face flip-front">
+          <div class="flip-tag">Myth 01</div>
+          <div class="flip-myth">"The powerplay decides the match."</div>
+          <div class="flip-hint">↙ hover to see the data</div>
+        </div>
+        <div class="flip-face flip-back">
+          <div class="flip-tag">Reality</div>
+          <div class="flip-verdict">Death overs have <strong>2× the impact</strong>. Winners outscore losers by +1.77 RPO in the death vs +0.94 in the powerplay. Wrong phase, wrong focus.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="flip-wrap">
+      <div class="flip-card">
+        <div class="flip-face flip-front">
+          <div class="flip-tag">Myth 02</div>
+          <div class="flip-myth">"200 is the unassailable target."</div>
+          <div class="flip-hint">↙ hover to see the data</div>
+        </div>
+        <div class="flip-face flip-back">
+          <div class="flip-tag">Reality</div>
+          <div class="flip-verdict">The real cliff is at <strong>~175</strong>. Chasing 160s is a 50/50. The non-linear wall appears well before 200 — confirmed by Breusch-Pagan heteroscedasticity (p=0.000).</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="flip-wrap">
+      <div class="flip-card">
+        <div class="flip-face flip-front">
+          <div class="flip-tag">Myth 03</div>
+          <div class="flip-myth">"Winning the toss is everything."</div>
+          <div class="flip-hint">↙ hover to see the data</div>
+        </div>
+        <div class="flip-face flip-back">
+          <div class="flip-tag">Reality</div>
+          <div class="flip-verdict">Toss winners win <strong>50.6%</strong> of matches. The toss itself is neutral. What destroys teams is making the wrong decision with it.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="flip-wrap">
+      <div class="flip-card">
+        <div class="flip-face flip-front">
+          <div class="flip-tag">Myth 04</div>
+          <div class="flip-myth">"Momentum doesn't exist in cricket."</div>
+          <div class="flip-hint">↙ hover to see the data</div>
+        </div>
+        <div class="flip-face flip-back">
+          <div class="flip-tag">Reality</div>
+          <div class="flip-verdict">AC₁ = <strong>+0.024</strong>, p &lt; 0.0001. Over-to-over autocorrelation is statistically significant across 47,442 within-match observations. It's not vibes.</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</section>
+<div class="divider"></div>
+
+<!-- DID YOU KNOW -->
+<section class="section">
+  <p class="section-label reveal">Random Facts</p>
+  <h2 class="section-title reveal">Did You Know?</h2>
+  <div class="dyk-wrap reveal">
+    <div id="dyk-num" class="dyk-num">50.5%</div>
+    <div id="dyk-text" class="dyk-text">Toss win rate. Barely better than the coin itself.</div>
+    <div id="dyk-tag" class="dyk-tag">1,218 matches · all seasons</div>
+    <button class="dyk-btn" id="dyk-btn">Next Fact →</button>
+  </div>
+</section>
+<div class="divider"></div>
+
+<!-- ECONOMETRICS IN PLAIN ENGLISH -->
+<section class="section">
+  <p class="section-label reveal">5 Statistical Tests · Plain English</p>
+  <h2 class="section-title reveal">The Numbers Behind The Numbers</h2>
+  <div class="diag-grid reveal">
+    <div class="diag-item">
+      <div class="diag-icon">📍</div>
+      <div class="diag-label">Structural Break</div>
+      <div class="diag-result confirmed">p = 0.0022</div>
+      <div class="diag-plain">2022 is a statistically confirmed inflection point. The scoring game genuinely changed — not just a trend, a break.</div>
+    </div>
+    <div class="diag-item">
+      <div class="diag-icon">📈</div>
+      <div class="diag-label">Autocorrelation (DW)</div>
+      <div class="diag-result">0.966</div>
+      <div class="diag-plain">Durbin-Watson = 0.97. Seasons aren't independent — a high-scoring year predicts the next. The trend has momentum.</div>
+    </div>
+    <div class="diag-item">
+      <div class="diag-icon">🔁</div>
+      <div class="diag-label">Momentum AC</div>
+      <div class="diag-result confirmed">p &lt; 0.0001</div>
+      <div class="diag-plain">Within-match over-to-over autocorrelation confirmed. A big over genuinely makes the next over more likely to be big.</div>
+    </div>
+    <div class="diag-item">
+      <div class="diag-icon">📊</div>
+      <div class="diag-label">Phase Variance (Levene)</div>
+      <div class="diag-result confirmed">p &lt; 0.0001</div>
+      <div class="diag-plain">Death overs aren't just higher-scoring — they have unequal variance. More chaotic, more decisive. That's why they matter more.</div>
+    </div>
+    <div class="diag-item">
+      <div class="diag-icon">🌊</div>
+      <div class="diag-label">Heteroscedasticity (BP)</div>
+      <div class="diag-result confirmed">p = 0.0000</div>
+      <div class="diag-plain">Win probability isn't linearly distributed across target scores. The "wall at 175" is non-linear — a logit model fits better than OLS.</div>
+    </div>
+  </div>
+</section>
+<div class="divider"></div>
+
+<!-- TOP PERFORMERS -->
 <section class="section">
   <p class="section-label reveal">IPL 2021–2025</p>
   <h2 class="section-title reveal">Top Performers</h2>
-
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:3rem;flex-wrap:wrap" class="reveal">
     <div>
-      <p style="font-family:'JetBrains Mono',monospace;font-size:0.7rem;letter-spacing:0.2em;text-transform:uppercase;color:var(--green);margin-bottom:1rem;">Top 5 Batters by Runs</p>
+      <p style="font-family:'JetBrains Mono',monospace;font-size:.7rem;letter-spacing:.2em;text-transform:uppercase;color:var(--green);margin-bottom:1rem;">Top 5 Batters · by Runs</p>
       <table class="results-table">
-        <thead>
-          <tr><th></th><th>Player</th><th>Runs</th><th>SR</th></tr>
-        </thead>
+        <thead><tr><th></th><th>Player</th><th>Runs</th><th>SR</th></tr></thead>
         <tbody>
-          <tr><td><span class="rank-badge">1</span></td><td class="tag">Shubman Gill</td><td><strong>2927</strong></td><td>139.3</td></tr>
-          <tr><td><span class="rank-badge" style="background:var(--sub)">2</span></td><td class="tag">V Kohli</td><td>2783</td><td>133.2</td></tr>
-          <tr><td><span class="rank-badge" style="background:var(--sub)">3</span></td><td class="tag">KL Rahul</td><td>2582</td><td>132.3</td></tr>
-          <tr><td><span class="rank-badge" style="background:var(--sub)">4</span></td><td class="tag">F du Plessis</td><td>2471</td><td>139.1</td></tr>
-          <tr><td><span class="rank-badge" style="background:var(--sub)">5</span></td><td class="tag">JC Buttler</td><td>2406</td><td>144.1</td></tr>
+          <tr><td><span class="rank-badge" style="background:var(--green)">1</span></td><td class="tag">Shubman Gill</td><td><strong>2927</strong></td><td>139.3</td></tr><tr><td><span class="rank-badge" style="background:var(--sub)">2</span></td><td class="tag">V Kohli</td><td><strong>2783</strong></td><td>133.2</td></tr><tr><td><span class="rank-badge" style="background:var(--sub)">3</span></td><td class="tag">KL Rahul</td><td><strong>2582</strong></td><td>132.3</td></tr><tr><td><span class="rank-badge" style="background:var(--sub)">4</span></td><td class="tag">F du Plessis</td><td><strong>2471</strong></td><td>139.1</td></tr><tr><td><span class="rank-badge" style="background:var(--sub)">5</span></td><td class="tag">JC Buttler</td><td><strong>2406</strong></td><td>144.1</td></tr>
         </tbody>
       </table>
     </div>
     <div>
-      <p style="font-family:'JetBrains Mono',monospace;font-size:0.7rem;letter-spacing:0.2em;text-transform:uppercase;color:var(--blue);margin-bottom:1rem;">Top 5 Bowlers by Wickets</p>
+      <p style="font-family:'JetBrains Mono',monospace;font-size:.7rem;letter-spacing:.2em;text-transform:uppercase;color:var(--blue);margin-bottom:1rem;">Top 5 Bowlers · by Wickets</p>
       <table class="results-table">
-        <thead>
-          <tr><th></th><th>Player</th><th>Wkts</th><th>Econ</th></tr>
-        </thead>
+        <thead><tr><th></th><th>Player</th><th>Wkts</th><th>Econ</th></tr></thead>
         <tbody>
-          <tr><td><span class="rank-badge" style="background:var(--blue)">1</span></td><td class="tag">HV Patel</td><td><strong>105</strong></td><td>9.09</td></tr>
-          <tr><td><span class="rank-badge" style="background:var(--sub)">2</span></td><td class="tag">YS Chahal</td><td>100</td><td>8.42</td></tr>
-          <tr><td><span class="rank-badge" style="background:var(--sub)">3</span></td><td class="tag">Arshdeep Singh</td><td>85</td><td>9.12</td></tr>
-          <tr><td><span class="rank-badge" style="background:var(--sub)">4</span></td><td class="tag">Rashid Khan</td><td>83</td><td style="color:var(--green)">7.95</td></tr>
-          <tr><td><span class="rank-badge" style="background:var(--sub)">5</span></td><td class="tag">Avesh Khan</td><td>82</td><td>9.16</td></tr>
+          <tr><td><span class="rank-badge" style="background:var(--blue)">1</span></td><td class="tag">HV Patel</td><td><strong>105</strong></td><td style="">9.09</td></tr><tr><td><span class="rank-badge" style="background:var(--sub)">2</span></td><td class="tag">YS Chahal</td><td><strong>100</strong></td><td style="">8.42</td></tr><tr><td><span class="rank-badge" style="background:var(--sub)">3</span></td><td class="tag">Arshdeep Singh</td><td><strong>85</strong></td><td style="">9.12</td></tr><tr><td><span class="rank-badge" style="background:var(--sub)">4</span></td><td class="tag">Rashid Khan</td><td><strong>83</strong></td><td style="color:var(--green)">7.95</td></tr><tr><td><span class="rank-badge" style="background:var(--sub)">5</span></td><td class="tag">Avesh Khan</td><td><strong>82</strong></td><td style="">9.16</td></tr>
         </tbody>
       </table>
-      <p style="font-size:0.72rem;color:var(--sub);margin-top:0.75rem;">Note: Bumrah (74 wkts, 7.12 econ) is the true efficiency leader — not in top 5 by volume but unmatched by quality.</p>
+      <p style="font-size:.72rem;color:var(--sub);margin-top:.75rem;">Bumrah (7.12  econ) — not top-5 by volume, unmatched by quality.</p>
     </div>
   </div>
 </section>
-
 <div class="divider"></div>
 
-<!-- ═══ FOOTER ══════════════════════════════════════════════════════ -->
+<!-- VENUE ANALYSIS -->
+<section class="section">
+  <p class="section-label reveal">22 Grounds · All Seasons</p>
+  <h2 class="section-title reveal">Every Ground Has A Personality</h2>
+  <p class="reveal" style="color:var(--sub);font-size:.9rem;margin-bottom:2rem;">Avg 1st-innings total tells you whether a ground is a batting paradise or a bowler's fortress. Bat-first win% below 50% means the ground rewards chasing.</p>
+  <div class="reveal" style="background:var(--bg2);border:1px solid var(--border);border-radius:16px;overflow:hidden;margin-bottom:2rem;">
+    <table style="width:100%;border-collapse:collapse;font-size:.85rem;">
+      <thead><tr style="border-bottom:1px solid var(--border);">
+        <th style="padding:.75rem 1rem;text-align:left;font-size:.65rem;letter-spacing:.15em;text-transform:uppercase;color:var(--sub);">Ground</th>
+        <th style="padding:.75rem 1rem;text-align:right;font-size:.65rem;letter-spacing:.15em;text-transform:uppercase;color:var(--sub);">Avg Total</th>
+        <th style="padding:.75rem 1rem;text-align:right;font-size:.65rem;letter-spacing:.15em;text-transform:uppercase;color:var(--sub);">Bat-first Win%</th>
+        <th style="padding:.75rem 1rem;text-align:right;font-size:.65rem;letter-spacing:.15em;text-transform:uppercase;color:var(--sub);">Matches</th>
+      </tr></thead>
+      <tbody>
+        <tr style="border-bottom:1px solid var(--border);background:var(--bg3)">
+          <td style="padding:.7rem 1rem;font-family:'JetBrains Mono',monospace;font-size:.8rem;">Sawai Mansingh Stadium</td>
+          <td style="padding:.7rem 1rem;text-align:right;font-weight:600;color:var(--green)">194</td>
+          <td style="padding:.7rem 1rem;text-align:right;color:var(--red)">43%</td>
+          <td style="padding:.7rem 1rem;text-align:right;color:var(--sub);font-size:.75rem;">21</td>
+        </tr><tr style="border-bottom:1px solid var(--border);">
+          <td style="padding:.7rem 1rem;font-family:'JetBrains Mono',monospace;font-size:.8rem;">Arun Jaitley Stadium</td>
+          <td style="padding:.7rem 1rem;text-align:right;font-weight:600;color:var(--green)">194</td>
+          <td style="padding:.7rem 1rem;text-align:right;color:var(--red)">43%</td>
+          <td style="padding:.7rem 1rem;text-align:right;color:var(--sub);font-size:.75rem;">30</td>
+        </tr><tr style="border-bottom:1px solid var(--border);background:var(--bg3)">
+          <td style="padding:.7rem 1rem;font-family:'JetBrains Mono',monospace;font-size:.8rem;">Rajiv Gandhi International Stadium</td>
+          <td style="padding:.7rem 1rem;text-align:right;font-weight:600;color:var(--green)">192</td>
+          <td style="padding:.7rem 1rem;text-align:right;color:var(--sub)">48%</td>
+          <td style="padding:.7rem 1rem;text-align:right;color:var(--sub);font-size:.75rem;">25</td>
+        </tr><tr style="border-bottom:1px solid var(--border);">
+          <td style="padding:.7rem 1rem;font-family:'JetBrains Mono',monospace;font-size:.8rem;">M Chinnaswamy Stadium</td>
+          <td style="padding:.7rem 1rem;text-align:right;font-weight:600;color:var(--green)">190</td>
+          <td style="padding:.7rem 1rem;text-align:right;color:var(--red)">46%</td>
+          <td style="padding:.7rem 1rem;text-align:right;color:var(--sub);font-size:.75rem;">24</td>
+        </tr><tr style="border-bottom:1px solid var(--border);background:var(--bg3)">
+          <td style="padding:.7rem 1rem;font-family:'JetBrains Mono',monospace;font-size:.8rem;">Eden Gardens</td>
+          <td style="padding:.7rem 1rem;text-align:right;font-weight:600;color:var(--green)">190</td>
+          <td style="padding:.7rem 1rem;text-align:right;color:var(--sub)">48%</td>
+          <td style="padding:.7rem 1rem;text-align:right;color:var(--sub);font-size:.75rem;">29</td>
+        </tr><tr style="border-bottom:1px solid var(--border);">
+          <td style="padding:.7rem 1rem;font-family:'JetBrains Mono',monospace;font-size:.8rem;">Narendra Modi Stadium</td>
+          <td style="padding:.7rem 1rem;text-align:right;font-weight:600;color:var(--green)">187</td>
+          <td style="padding:.7rem 1rem;text-align:right;color:var(--sub)">50%</td>
+          <td style="padding:.7rem 1rem;text-align:right;color:var(--sub);font-size:.75rem;">40</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="reveal" style="color:var(--sub);font-size:.78rem;font-family:'JetBrains Mono',monospace;">
+    top scoring grounds: Sawai Mansingh Stadium, Jaipur · Arun Jaitley Stadium, Delhi &nbsp;|&nbsp; bowling-friendly: Sheikh Zayed Stadium · Sawai Mansingh Stadium
+  </p>
+</section>
+<div class="divider"></div>
+
+<!-- EARLY WICKETS -->
+<section class="section">
+  <p class="section-label reveal">Powerplay Wickets · All Seasons</p>
+  <h2 class="section-title reveal">The Skeleton Key: Powerplay Wickets</h2>
+  <p class="reveal" style="color:var(--sub);font-size:.9rem;margin-bottom:2rem;">Lose 0 in the powerplay and you win <strong style="color:var(--green)">59%</strong> of the time. Lose 4+ and it drops to <strong style="color:var(--red)">16%</strong>. That's a <strong style="color:var(--text)">43-point swing</strong> decided in the first 6 overs.</p>
+  <div class="probe-grid reveal">
+    <div class="probe-item">
+      <div class="probe-q">0 wkts in powerplay</div>
+      <div class="probe-a" style="color:var(--green)">59%</div>
+      <div class="probe-context">batting-first win rate · n=269</div>
+    </div><div class="probe-item">
+      <div class="probe-q">1 wkt in powerplay</div>
+      <div class="probe-a" style="color:var(--yellow)">48%</div>
+      <div class="probe-context">batting-first win rate · n=460</div>
+    </div><div class="probe-item">
+      <div class="probe-q">2 wkts in powerplay</div>
+      <div class="probe-a" style="color:var(--red)">40%</div>
+      <div class="probe-context">batting-first win rate · n=318</div>
+    </div><div class="probe-item">
+      <div class="probe-q">3 wkts in powerplay</div>
+      <div class="probe-a" style="color:var(--red)">25%</div>
+      <div class="probe-context">batting-first win rate · n=137</div>
+    </div><div class="probe-item">
+      <div class="probe-q">4+ wkts in powerplay</div>
+      <div class="probe-a" style="color:var(--red)">16%</div>
+      <div class="probe-context">batting-first win rate · n=51</div>
+    </div>
+  </div>
+</section>
+<div class="divider"></div>
+
+<!-- PLAYER OF THE MATCH -->
+<section class="section">
+  <p class="section-label reveal">IPL 2021–2025 · Match Winners</p>
+  <h2 class="section-title reveal">The Clutch Players</h2>
+  <p class="reveal" style="color:var(--sub);font-size:.9rem;margin-bottom:2rem;">Player of the match awarded to the player whose performance most decided the game. Most-awarded across the last 5 seasons.</p>
+  <div class="probe-grid reveal" style="grid-template-columns:repeat(auto-fit,minmax(130px,1fr));">
+    <div class="probe-item">
+      <div class="probe-q">Gill</div>
+      <div class="probe-a" style="font-size:1.6rem;color:var(--text)">10</div>
+      <div class="probe-context">PotMs · 77 games · 13.0%</div>
+    </div><div class="probe-item">
+      <div class="probe-q">Buttler</div>
+      <div class="probe-a" style="font-size:1.6rem;color:var(--text)">8</div>
+      <div class="probe-context">PotMs · 62 games · 12.9%</div>
+    </div><div class="probe-item">
+      <div class="probe-q">Rahul</div>
+      <div class="probe-a" style="font-size:1.6rem;color:var(--text)">8</div>
+      <div class="probe-context">PotMs · 63 games · 12.7%</div>
+    </div><div class="probe-item">
+      <div class="probe-q">Gaikwad</div>
+      <div class="probe-a" style="font-size:1.6rem;color:var(--text)">8</div>
+      <div class="probe-context">PotMs · 64 games · 12.5%</div>
+    </div><div class="probe-item">
+      <div class="probe-q">Narine</div>
+      <div class="probe-a" style="font-size:1.6rem;color:var(--text)">8</div>
+      <div class="probe-context">PotMs · 55 games · 14.5%</div>
+    </div><div class="probe-item">
+      <div class="probe-q">Jadeja</div>
+      <div class="probe-a" style="font-size:1.6rem;color:var(--text)">7</div>
+      <div class="probe-context">PotMs · 58 games · 12.1%</div>
+    </div><div class="probe-item">
+      <div class="probe-q">Sharma</div>
+      <div class="probe-a" style="font-size:1.6rem;color:var(--text)">6</div>
+      <div class="probe-context">PotMs · 61 games · 9.8%</div>
+    </div><div class="probe-item">
+      <div class="probe-q">Plessis</div>
+      <div class="probe-a" style="font-size:1.6rem;color:var(--text)">6</div>
+      <div class="probe-context">PotMs · 70 games · 8.6%</div>
+    </div>
+  </div>
+</section>
+<div class="divider"></div>
+
+<!-- PREDICTION -->
+<section class="section">
+  <p class="section-label reveal">Data-Driven · IPL 2026</p>
+  <h2 class="section-title reveal">Our Prediction</h2>
+  <div class="reveal" style="display:flex;align-items:baseline;gap:1rem;margin-bottom:1.25rem;flex-wrap:wrap;">
+    <p style="color:var(--sub);font-size:.82rem;margin:0;">based on current 2026 form + playoff venue fit + 5 historical signals. not financial advice.</p>
+    <details style="display:inline;">
+      <summary style="cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:.67rem;color:#4a5568;letter-spacing:.08em;list-style:none;user-select:none;white-space:nowrap;">&#9656; how it works</summary>
+      <div style="position:absolute;z-index:10;margin-top:.5rem;background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:1.1rem 1.25rem;font-family:'JetBrains Mono',monospace;font-size:.67rem;color:#4a5568;line-height:2;min-width:440px;box-shadow:0 8px 32px rgba(0,0,0,.6);">
+        <div style="display:grid;grid-template-columns:1fr auto auto;gap:.15rem 1.25rem;margin-bottom:.6rem;">
+          <span style="color:#3d4451;font-size:.58rem;letter-spacing:.15em;">SIGNAL</span><span style="color:#3d4451;font-size:.58rem;letter-spacing:.15em;">WT</span><span style="color:#3d4451;font-size:.58rem;letter-spacing:.15em;">SOURCE</span>
+          <span>2026 season win rate</span><span>38%</span><span style="color:#3d4451;">current CSV &middot; 2026-05-21</span>
+          <span>2026 NRR</span><span>4%</span><span style="color:#3d4451;">tiebreaker &middot; (runs/overs scored &minus; conceded)</span>
+          <span>EWMA win rate</span><span>16%</span><span style="color:#3d4451;">2024–25 &middot; decay=0.65/season</span>
+          <span>death batting RPO</span><span>14%</span><span style="color:#3d4451;">phase analysis &middot; overs 16–20</span>
+          <span>death bowling RPO</span><span>10%</span><span style="color:#3d4451;">phase analysis &middot; runs conceded</span>
+          <span>playoff venue fit</span><span>9%</span><span style="color:#3d4451;">Ahmedabad (Final) + Mullanpur win rate</span>
+          <span>archetype ratios</span><span>9%</span><span style="color:#3d4451;">UMAP + KMeans &middot; 2021–25</span>
+          <span>home advantage</span><span>5%</span><span style="color:#3d4451;">home vs away win-rate delta</span>
+          <span>toss-decision edge</span><span>4%</span><span style="color:#3d4451;">field% &minus; bat% win rate</span>
+        </div>
+        <div style="border-top:1px solid var(--border);padding-top:.5rem;color:#3d4451;line-height:1.7;">
+          elimination: max_pts &lt; 16 &rarr; score zeroed &middot;
+          backtest 16 seasons walk-forward &middot; top-4: 81% vs 40% random
+        </div>
+      </div>
+    </details>
+  </div>
+  <p class="reveal" style="color:var(--red);font-size:.72rem;font-family:'JetBrains Mono',monospace;margin-bottom:2rem;">
+    &#9888; CSV data current to 2026-05-21 &mdash; ~1 days of matches missing.
+    Eliminated (max pts &lt; 16): CSK, LSG, MI
+  </p>
+  <div class="reveal" style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:1.5rem;">
+    <span style="background:rgba(29,185,84,.1);border:1px solid rgba(29,185,84,.3);border-radius:8px;padding:.4rem .8rem;font-family:JetBrains Mono,monospace;font-size:.7rem;color:var(--green)">
+      RCB 18pts/13g</span><span style="background:rgba(29,185,84,.1);border:1px solid rgba(29,185,84,.3);border-radius:8px;padding:.4rem .8rem;font-family:JetBrains Mono,monospace;font-size:.7rem;color:var(--green)">
+      KKR 12pts/13g</span><span style="background:rgba(29,185,84,.1);border:1px solid rgba(29,185,84,.3);border-radius:8px;padding:.4rem .8rem;font-family:JetBrains Mono,monospace;font-size:.7rem;color:var(--green)">
+      GT 18pts/14g</span><span style="background:rgba(29,185,84,.1);border:1px solid rgba(29,185,84,.3);border-radius:8px;padding:.4rem .8rem;font-family:JetBrains Mono,monospace;font-size:.7rem;color:var(--green)">
+      SRH 16pts/13g</span><span style="background:rgba(29,185,84,.1);border:1px solid rgba(29,185,84,.3);border-radius:8px;padding:.4rem .8rem;font-family:JetBrains Mono,monospace;font-size:.7rem;color:var(--green)">
+      PBKS 13pts/13g</span><span style="background:rgba(29,185,84,.1);border:1px solid rgba(29,185,84,.3);border-radius:8px;padding:.4rem .8rem;font-family:JetBrains Mono,monospace;font-size:.7rem;color:var(--green)">
+      RR 14pts/13g</span><span style="background:rgba(29,185,84,.1);border:1px solid rgba(29,185,84,.3);border-radius:8px;padding:.4rem .8rem;font-family:JetBrains Mono,monospace;font-size:.7rem;color:var(--green)">
+      DC 12pts/13g</span><span style="background:rgba(29,185,84,.1);border:1px solid rgba(29,185,84,.3);border-radius:8px;padding:.4rem .8rem;font-family:JetBrains Mono,monospace;font-size:.7rem;color:var(--green)">
+      &#10007; CSK 12pts/14g</span><span style="background:rgba(255,75,75,.07);border:1px solid rgba(255,75,75,.2);border-radius:8px;padding:.4rem .8rem;font-family:JetBrains Mono,monospace;font-size:.7rem;color:#5a4040">
+      &#10007; MI 8pts/13g</span><span style="background:rgba(255,75,75,.07);border:1px solid rgba(255,75,75,.2);border-radius:8px;padding:.4rem .8rem;font-family:JetBrains Mono,monospace;font-size:.7rem;color:#5a4040">
+      &#10007; LSG 9pts/13g</span>
+  </div>
+
+  <!-- Remaining schedule + venue advantage -->
+  <div class="reveal" style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:2.5rem;">
+
+    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:1.25rem;">
+      <div style="font-family:'JetBrains Mono',monospace;font-size:.62rem;letter-spacing:.2em;text-transform:uppercase;color:var(--sub);margin-bottom:.85rem;">Remaining Schedule</div>
+      <div style="display:flex;justify-content:space-between;align-items:baseline;padding:.3rem 0;border-bottom:1px solid var(--border);font-size:.75rem;">
+        <span style="color:var(--sub);font-family:'JetBrains Mono',monospace;font-size:.65rem;">May 22</span>
+        <span style="color:var(--text);">SRH <span style="color:var(--sub)">vs</span> RCB</span>
+        <span style="color:var(--sub);font-size:.65rem;font-family:'JetBrains Mono',monospace;">Hyderabad</span>
+      </div><div style="display:flex;justify-content:space-between;align-items:baseline;padding:.3rem 0;border-bottom:1px solid var(--border);font-size:.75rem;">
+        <span style="color:var(--sub);font-family:'JetBrains Mono',monospace;font-size:.65rem;">May 23</span>
+        <span style="color:var(--text);">LSG <span style="color:var(--sub)">vs</span> PBKS</span>
+        <span style="color:var(--sub);font-size:.65rem;font-family:'JetBrains Mono',monospace;">Lucknow</span>
+      </div><div style="display:flex;justify-content:space-between;align-items:baseline;padding:.3rem 0;border-bottom:1px solid var(--border);font-size:.75rem;">
+        <span style="color:var(--sub);font-family:'JetBrains Mono',monospace;font-size:.65rem;">May 24</span>
+        <span style="color:var(--text);">MI <span style="color:var(--sub)">vs</span> RR</span>
+        <span style="color:var(--sub);font-size:.65rem;font-family:'JetBrains Mono',monospace;">Mumbai</span>
+      </div><div style="display:flex;justify-content:space-between;align-items:baseline;padding:.3rem 0;border-bottom:1px solid var(--border);font-size:.75rem;">
+        <span style="color:var(--sub);font-family:'JetBrains Mono',monospace;font-size:.65rem;">May 24</span>
+        <span style="color:var(--text);">KKR <span style="color:var(--sub)">vs</span> DC</span>
+        <span style="color:var(--sub);font-size:.65rem;font-family:'JetBrains Mono',monospace;">Kolkata</span>
+      </div>
+      <div style="margin-top:.75rem;font-family:'JetBrains Mono',monospace;font-size:.62rem;letter-spacing:.2em;text-transform:uppercase;color:var(--orange);margin-bottom:.5rem;">Playoffs</div>
+      <div style="display:flex;justify-content:space-between;align-items:baseline;padding:.3rem 0;border-bottom:1px solid var(--border);font-size:.75rem;">
+        <span style="color:var(--sub);font-family:'JetBrains Mono',monospace;font-size:.65rem;">May 26</span>
+        <span style="color:var(--orange);font-family:'JetBrains Mono',monospace;font-size:.68rem;">Qualifier 1</span>
+        <span style="color:var(--sub);font-size:.65rem;font-family:'JetBrains Mono',monospace;">Dharamshala</span>
+      </div><div style="display:flex;justify-content:space-between;align-items:baseline;padding:.3rem 0;border-bottom:1px solid var(--border);font-size:.75rem;">
+        <span style="color:var(--sub);font-family:'JetBrains Mono',monospace;font-size:.65rem;">May 27</span>
+        <span style="color:var(--orange);font-family:'JetBrains Mono',monospace;font-size:.68rem;">Eliminator</span>
+        <span style="color:var(--sub);font-size:.65rem;font-family:'JetBrains Mono',monospace;">New Chandigarh</span>
+      </div><div style="display:flex;justify-content:space-between;align-items:baseline;padding:.3rem 0;border-bottom:1px solid var(--border);font-size:.75rem;">
+        <span style="color:var(--sub);font-family:'JetBrains Mono',monospace;font-size:.65rem;">May 29</span>
+        <span style="color:var(--orange);font-family:'JetBrains Mono',monospace;font-size:.68rem;">Qualifier 2</span>
+        <span style="color:var(--sub);font-size:.65rem;font-family:'JetBrains Mono',monospace;">New Chandigarh</span>
+      </div><div style="display:flex;justify-content:space-between;align-items:baseline;padding:.3rem 0;border-bottom:1px solid var(--border);font-size:.75rem;">
+        <span style="color:var(--sub);font-family:'JetBrains Mono',monospace;font-size:.65rem;">May 31</span>
+        <span style="color:var(--orange);font-family:'JetBrains Mono',monospace;font-size:.68rem;">Final</span>
+        <span style="color:var(--sub);font-size:.65rem;font-family:'JetBrains Mono',monospace;">Ahmedabad</span>
+      </div>
+    </div>
+
+    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:1.25rem;">
+      <div style="font-family:'JetBrains Mono',monospace;font-size:.62rem;letter-spacing:.2em;text-transform:uppercase;color:var(--sub);margin-bottom:.85rem;">Playoff Venue Fit <span style="color:var(--orange);">(Ahmedabad Final + Mullanpur)</span></div>
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:.35rem 0;border-bottom:1px solid var(--border);">
+        <span style="font-family:'JetBrains Mono',monospace;font-size:.75rem;color:var(--text);">DC</span>
+        <div style="flex:1;margin:0 .75rem;height:4px;background:var(--bg3);border-radius:999px;overflow:hidden;">
+          <div style="width:62%;height:100%;background:var(--green);border-radius:999px;"></div>
+        </div>
+        <span style="font-family:'JetBrains Mono',monospace;font-size:.72rem;color:var(--green);">62%</span>
+      </div><div style="display:flex;justify-content:space-between;align-items:center;padding:.35rem 0;border-bottom:1px solid var(--border);">
+        <span style="font-family:'JetBrains Mono',monospace;font-size:.75rem;color:var(--text);">RR</span>
+        <div style="flex:1;margin:0 .75rem;height:4px;background:var(--bg3);border-radius:999px;overflow:hidden;">
+          <div style="width:62%;height:100%;background:var(--green);border-radius:999px;"></div>
+        </div>
+        <span style="font-family:'JetBrains Mono',monospace;font-size:.72rem;color:var(--green);">62%</span>
+      </div><div style="display:flex;justify-content:space-between;align-items:center;padding:.35rem 0;border-bottom:1px solid var(--border);">
+        <span style="font-family:'JetBrains Mono',monospace;font-size:.75rem;color:var(--text);">GT</span>
+        <div style="flex:1;margin:0 .75rem;height:4px;background:var(--bg3);border-radius:999px;overflow:hidden;">
+          <div style="width:57%;height:100%;background:var(--green);border-radius:999px;"></div>
+        </div>
+        <span style="font-family:'JetBrains Mono',monospace;font-size:.72rem;color:var(--green);">57%</span>
+      </div><div style="display:flex;justify-content:space-between;align-items:center;padding:.35rem 0;border-bottom:1px solid var(--border);">
+        <span style="font-family:'JetBrains Mono',monospace;font-size:.75rem;color:var(--text);">KKR</span>
+        <div style="flex:1;margin:0 .75rem;height:4px;background:var(--bg3);border-radius:999px;overflow:hidden;">
+          <div style="width:57%;height:100%;background:var(--green);border-radius:999px;"></div>
+        </div>
+        <span style="font-family:'JetBrains Mono',monospace;font-size:.72rem;color:var(--green);">57%</span>
+      </div><div style="display:flex;justify-content:space-between;align-items:center;padding:.35rem 0;border-bottom:1px solid var(--border);">
+        <span style="font-family:'JetBrains Mono',monospace;font-size:.75rem;color:var(--text);">RCB</span>
+        <div style="flex:1;margin:0 .75rem;height:4px;background:var(--bg3);border-radius:999px;overflow:hidden;">
+          <div style="width:50%;height:100%;background:var(--yellow);border-radius:999px;"></div>
+        </div>
+        <span style="font-family:'JetBrains Mono',monospace;font-size:.72rem;color:var(--yellow);">50%</span>
+      </div><div style="display:flex;justify-content:space-between;align-items:center;padding:.35rem 0;border-bottom:1px solid var(--border);">
+        <span style="font-family:'JetBrains Mono',monospace;font-size:.75rem;color:var(--text);">PBKS</span>
+        <div style="flex:1;margin:0 .75rem;height:4px;background:var(--bg3);border-radius:999px;overflow:hidden;">
+          <div style="width:44%;height:100%;background:var(--yellow);border-radius:999px;"></div>
+        </div>
+        <span style="font-family:'JetBrains Mono',monospace;font-size:.72rem;color:var(--yellow);">44%</span>
+      </div><div style="display:flex;justify-content:space-between;align-items:center;padding:.35rem 0;border-bottom:1px solid var(--border);">
+        <span style="font-family:'JetBrains Mono',monospace;font-size:.75rem;color:var(--text);">SRH</span>
+        <div style="flex:1;margin:0 .75rem;height:4px;background:var(--bg3);border-radius:999px;overflow:hidden;">
+          <div style="width:15%;height:100%;background:var(--red);border-radius:999px;"></div>
+        </div>
+        <span style="font-family:'JetBrains Mono',monospace;font-size:.72rem;color:var(--red);">15%</span>
+      </div>
+      <p style="font-size:.65rem;color:#3a3f4b;margin-top:.6rem;font-family:'JetBrains Mono',monospace;">SRH: 0-for-5 at Narendra Modi Stadium all-time</p>
+    </div>
+  </div>
+
+  <div class="reveal" style="background:var(--bg2);border:1px solid var(--green);border-radius:20px;padding:2.5rem;margin-bottom:1.5rem;text-align:center;position:relative;overflow:hidden;">
+    <div style="position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,var(--green),var(--blue),var(--green));"></div>
+    <div style="font-family:'JetBrains Mono',monospace;font-size:.68rem;letter-spacing:.3em;text-transform:uppercase;color:var(--green);margin-bottom:.75rem;">🏆 Predicted Champion</div>
+    <div style="font-family:'Bebas Neue',sans-serif;font-size:clamp(3rem,8vw,6rem);color:var(--text);line-height:1;">RCB</div>
+    <div style="font-size:.9rem;color:var(--sub);margin:.75rem 0 .5rem;">Royal Challengers Bengaluru</div>
+    <div style="font-family:'JetBrains Mono',monospace;font-size:.78rem;color:var(--green);">18 pts — top-2 confirmed, 1 game left</div>
+    <div style="margin-top:1.25rem;font-family:'JetBrains Mono',monospace;font-size:.65rem;color:var(--sub);">composite score: 85.1 / 100</div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:1rem;" class="reveal">
+    <div style="background:var(--bg2);border:1px solid var(--green);border-radius:14px;padding:1.5rem;text-align:center;">
+      <div style="font-family:'JetBrains Mono',monospace;font-size:.62rem;letter-spacing:.2em;text-transform:uppercase;color:var(--sub);margin-bottom:.5rem;">🏆 winner</div>
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:2.2rem;color:var(--text);line-height:1;">RCB</div>
+      <div style="font-size:.72rem;color:var(--sub);margin:.4rem 0 .6rem;">Royal Challengers Bengaluru</div>
+      <div style="font-family:'JetBrains Mono',monospace;font-size:.68rem;color:var(--green);">18 pts — top-2 confirmed, 1 game left</div>
+      <div style="margin-top:.75rem;background:var(--bg3);border-radius:999px;height:4px;overflow:hidden;"><div style="width:100%;height:100%;background:var(--green);border-radius:999px;"></div></div>
+      <div style="font-size:.65rem;color:var(--sub);margin-top:.3rem;">85.1 / 100</div>
+    </div><div style="background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:1.5rem;text-align:center;">
+      <div style="font-family:'JetBrains Mono',monospace;font-size:.62rem;letter-spacing:.2em;text-transform:uppercase;color:var(--sub);margin-bottom:.5rem;">🥈 finalist</div>
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:2.2rem;color:var(--text);line-height:1;">KKR</div>
+      <div style="font-size:.72rem;color:var(--sub);margin:.4rem 0 .6rem;">Kolkata Knight Riders</div>
+      <div style="font-family:'JetBrains Mono',monospace;font-size:.68rem;color:var(--green);">12 pts · needs results to go their way (1g left)</div>
+      <div style="margin-top:.75rem;background:var(--bg3);border-radius:999px;height:4px;overflow:hidden;"><div style="width:77%;height:100%;background:var(--blue);border-radius:999px;"></div></div>
+      <div style="font-size:.65rem;color:var(--sub);margin-top:.3rem;">65.8 / 100</div>
+    </div><div style="background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:1.5rem;text-align:center;">
+      <div style="font-family:'JetBrains Mono',monospace;font-size:.62rem;letter-spacing:.2em;text-transform:uppercase;color:var(--sub);margin-bottom:.5rem;">🎯 playoff 3</div>
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:2.2rem;color:var(--text);line-height:1;">GT</div>
+      <div style="font-size:.72rem;color:var(--sub);margin:.4rem 0 .6rem;">Gujarat Titans</div>
+      <div style="font-family:'JetBrains Mono',monospace;font-size:.68rem;color:var(--green);">18 pts — top-2 confirmed, 0 games left</div>
+      <div style="margin-top:.75rem;background:var(--bg3);border-radius:999px;height:4px;overflow:hidden;"><div style="width:69%;height:100%;background:var(--blue);border-radius:999px;"></div></div>
+      <div style="font-size:.65rem;color:var(--sub);margin-top:.3rem;">58.7 / 100</div>
+    </div><div style="background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:1.5rem;text-align:center;">
+      <div style="font-family:'JetBrains Mono',monospace;font-size:.62rem;letter-spacing:.2em;text-transform:uppercase;color:var(--sub);margin-bottom:.5rem;">🎯 playoff 4</div>
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:2.2rem;color:var(--text);line-height:1;">SRH</div>
+      <div style="font-size:.72rem;color:var(--sub);margin:.4rem 0 .6rem;">Sunrisers Hyderabad</div>
+      <div style="font-family:'JetBrains Mono',monospace;font-size:.68rem;color:var(--green);">16 pts — top-2 confirmed, 1 game left</div>
+      <div style="margin-top:.75rem;background:var(--bg3);border-radius:999px;height:4px;overflow:hidden;"><div style="width:65%;height:100%;background:var(--blue);border-radius:999px;"></div></div>
+      <div style="font-size:.65rem;color:var(--sub);margin-top:.3rem;">55.3 / 100</div>
+    </div>
+  </div>
+
+</section>
+<div class="divider"></div>
+
+<!-- FOOTER -->
 <footer class="reveal">
-  <p style="margin-bottom:0.5rem">
-    <strong>IPL Crunch '26</strong> · Wooble Data Analytics Challenge
-  </p>
-  <p>
-    Data: Cricsheet.org (CC-BY-SA-4.0) · 289,673 balls · 19 seasons (2007/08 – 2026) ·
-    Analysis: Python, pandas, matplotlib · All work original
-  </p>
+  <p style="margin-bottom:.5rem"><strong>IPL Crunch '26</strong> · Wooble Data Analytics Challenge</p>
+  <p>Data: Cricsheet.org (CC-BY-SA-4.0) · 289,673 balls · 19 seasons · Python, pandas, sklearn, umap-learn · All analysis original</p>
+  <p style="margin-top:.5rem;font-family:'JetBrains Mono',monospace;font-size:.65rem;color:var(--border)">auto-generated · last run: 2026-05-23 01:07</p>
 </footer>
 
-<script>
-  // Intersection observer for scroll reveals
-  const reveals = document.querySelectorAll('.reveal');
+
+<script>  // scroll reveal
   const obs = new IntersectionObserver((entries) => {
     entries.forEach((e, i) => {
       if (e.isIntersecting) {
@@ -827,21 +922,71 @@
       }
     });
   }, { threshold: 0.1 });
-  reveals.forEach(el => obs.observe(el));
+  document.querySelectorAll('.reveal').forEach(el => obs.observe(el));
 
-  // Animate bar fills on scroll
-  document.querySelectorAll('.bar-fill').forEach(bar => {
-    const w = bar.dataset.width;
-    const barObs = new IntersectionObserver((entries) => {
-      entries.forEach(e => {
-        if (e.isIntersecting) {
-          e.target.style.width = w;
-          barObs.unobserve(e.target);
-        }
-      });
-    }, { threshold: 0.3 });
-    barObs.observe(bar);
+  // flip cards — also toggle on click for mobile
+  document.querySelectorAll('.flip-card').forEach(card => {
+    card.addEventListener('click', () => card.classList.toggle('flipped'));
   });
+
+  // Did You Know shuffler
+  const facts = [
+    { num: "50.5%", text: "Toss win rate. Barely better than the coin itself.", tag: "1,218 matches · all seasons" },
+    { num: "6.99", text: "Over 7 RPO. Cheaper than the opening over (7.74). The free wicket nobody takes.", tag: "over-level analysis" },
+    { num: "9.4%", text: "The swing in win probability from one toss decision. Bat: 44.3%. Field: 53.7%.", tag: "toss decision analysis" },
+    { num: "p = 0.003", text: "The Chow test p-value. The 2022 scoring break is statistically confirmed.", tag: "structural break test" },
+    { num: "1.77", text: "RPO gap in death overs between winners and losers. The powerplay gap: 0.95.", tag: "phase analysis" },
+    { num: "+0.023", text: "First-order autocorrelation within matches. Momentum is not vibes — it's in the data.", tag: "AC₁ · p < 0.0001" },
+    { num: "+0.32/yr", text: "Post-2022 scoring acceleration. Pre-2022 it was +0.04 RPO per year.", tag: "structural break · Chow" },
+    { num: "60%", text: "CSK win rate after winning toss. Bat OR field. Exact same number both ways.", tag: "CSK all-seasons" },
+    { num: "26 of 78", text: "Death Finishers in the batter archetype map — the rarest class: Anchors (14).", tag: "UMAP + KMeans · 2021–25" },
+    { num: "~6", text: "Matches SRH left on the table by batting too often after winning the toss.", tag: "SRH toss counterfactual" },
+    { num: "~175", text: "The real tipping point for chase difficulty. Not 200. Chasing 160s is 50/50.", tag: "chase wall analysis" },
+    { num: "289,673", text: "Balls in the dataset. Every number on this page came from one of them.", tag: "Cricsheet · CC-BY-SA-4.0" },
+  ];
+  let fi = 0;
+  function showFact(i) {
+    const el_n = document.getElementById('dyk-num');
+    const el_t = document.getElementById('dyk-text');
+    const el_tag = document.getElementById('dyk-tag');
+    el_n.style.opacity = 0; el_t.style.opacity = 0;
+    setTimeout(() => {
+      el_n.textContent  = facts[i].num;
+      el_t.textContent  = facts[i].text;
+      el_tag.textContent = facts[i].tag;
+      el_n.style.opacity = 1; el_t.style.opacity = 1;
+    }, 300);
+  }
+  document.getElementById('dyk-btn').addEventListener('click', () => {
+    fi = (fi + 1) % facts.length;
+    showFact(fi);
+  });
+  setInterval(() => { fi = (fi + 1) % facts.length; showFact(fi); }, 6000);
+
+  // animated counters
+  function animateCount(el) {
+    const target = parseFloat(el.dataset.target);
+    const dec    = parseInt(el.dataset.dec || 0);
+    const dur    = 1400;
+    const step   = 16;
+    const steps  = dur / step;
+    let cur = 0; let tick = 0;
+    const t = setInterval(() => {
+      tick++;
+      cur = target * (tick / steps);
+      el.textContent = cur.toFixed(dec);
+      if (tick >= steps) { el.textContent = target.toFixed(dec); clearInterval(t); }
+    }, step);
+  }
+  const cntObs = new IntersectionObserver((entries) => {
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        e.target.querySelectorAll('[data-target]').forEach(animateCount);
+        cntObs.unobserve(e.target);
+      }
+    });
+  }, { threshold: 0.3 });
+  document.querySelectorAll('.era-box').forEach(el => cntObs.observe(el));
 </script>
 </body>
 </html>
