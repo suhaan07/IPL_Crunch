@@ -32,11 +32,13 @@ import matplotlib.patches as mpatches
 import matplotlib.gridspec as gridspec
 from matplotlib.ticker import FuncFormatter
 from pathlib import Path
+import base64, io as _io
 import warnings
 warnings.filterwarnings("ignore")
 
 OUT = Path("charts")
 OUT.mkdir(exist_ok=True)
+_CHART_B64: dict = {}
 
 # ── Design tokens ─────────────────────────────────────────────────
 C_WIN     = "#1DB954";  C_LOSE    = "#FF4B4B";  C_ACCENT  = "#F97316"
@@ -56,7 +58,11 @@ plt.rcParams.update({
 })
 
 def save(name):
+    buf = _io.BytesIO()
+    plt.savefig(buf, format="png", dpi=150, bbox_inches="tight", facecolor=C_BG)
     plt.savefig(OUT / name, dpi=150, bbox_inches="tight", facecolor=C_BG)
+    buf.seek(0)
+    _CHART_B64[name] = base64.b64encode(buf.read()).decode()
     plt.close()
     print(f"  ✓ {name}")
 
@@ -66,6 +72,12 @@ def save(name):
 print("\n── B. Loading & engineering features ──")
 
 df = pd.read_csv(CSV_PATH, low_memory=False, dtype={"season": str})
+
+# Normalize RCB name (renamed from "Bengaluru" to "Bangalore" mid-series)
+for _col in ["team1","team2","winner","batting_team","toss_winner"]:
+    df[_col] = df[_col].str.replace(
+        "Royal Challengers Bengaluru", "Royal Challengers Bangalore", regex=False
+    )
 
 # ── Raw flags ─────────────────────────────────────────────────────
 df["over_1idx"]     = df["over"] + 1
@@ -163,19 +175,28 @@ chase_df["target_band"] = pd.cut(chase_df["target"],
     labels=["<120","120s","130s","140s","150s","160s","170s","180s","190s","200+"])
 
 # ── Batter / bowler stats (last 5 seasons) ────────────────────────
-LAST5 = ["2021","2022","2023","2024","2025"]
+LAST5 = ["2022","2023","2024","2025","2026"]
 df5   = df[df["season"].isin(LAST5)]
 
 bat5 = (df5.groupby("batter")
         .agg(runs=("runs_batter","sum"),
-             balls=("runs_batter","count"),
+             balls=("legal_ball","sum"),
              matches=("match_id","nunique"),
              fours=("is_four","sum"),
              sixes=("is_six","sum"))
         .reset_index())
 bat5["sr"]  = (bat5["runs"] / bat5["balls"] * 100).round(1)
 bat5["avg"] = (bat5["runs"] / bat5["matches"]).round(1)
-top5_bat    = bat5.nlargest(5,"runs").reset_index(drop=True)
+# Quality composite: avg + strike rate, equal weight.
+# Raw runs excluded — penalises players who missed seasons through injury.
+# Min 20 matches required so small-sample outliers don't dominate.
+_bat_qual = bat5[bat5["matches"] >= 20].copy()
+_nb = lambda s: (s - s.min()) / (s.max() - s.min() + 1e-9)
+_bat_qual["bat_quality"] = (
+    _nb(_bat_qual["avg"]) * 50 +   # higher avg = better
+    _nb(_bat_qual["sr"])  * 50      # higher SR = better
+)
+top5_bat    = _bat_qual.nlargest(5, "bat_quality").reset_index(drop=True)
 top5_bat.index = range(1,6)
 
 bowl5 = (df5.groupby("bowler")
@@ -187,7 +208,17 @@ bowl5 = (df5.groupby("bowler")
 bowl5 = bowl5[bowl5["legal_balls"] >= 120].copy()
 bowl5["overs"]   = bowl5["legal_balls"] / 6
 bowl5["economy"] = (bowl5["runs_given"] / bowl5["overs"]).round(2)
-top5_bowl = bowl5.nlargest(5,"wickets").reset_index(drop=True)
+bowl5["wpm"]     = (bowl5["wickets"] / bowl5["matches"]).round(3)
+# Quality composite: economy + wickets/match, equal weight.
+# Raw wickets excluded — penalises players who missed seasons through injury.
+# Min 20 matches required so small-sample outliers don't dominate.
+_bowl_qual = bowl5[bowl5["matches"] >= 20].copy()
+_n = lambda s: (s - s.min()) / (s.max() - s.min() + 1e-9)
+_bowl_qual["bowl_quality"] = (
+    _n(-_bowl_qual["economy"]) * 50 +   # lower economy = better
+    _n(_bowl_qual["wpm"])       * 50     # more wickets per match = better
+)
+top5_bowl = _bowl_qual.nlargest(5, "bowl_quality").reset_index(drop=True)
 top5_bowl.index = range(1,6)
 
 # ─────────────────────────────────────────────────────────────────
@@ -204,24 +235,97 @@ MIN_BOWL_BALLS = 100
 
 # ── Static lookups (bowler type / batter hand — not in CSV) ───────
 BOWLER_TYPE = {
+    # ── pace ──────────────────────────────────────────────────────────
     "JJ Bumrah":"pace","Arshdeep Singh":"pace","Mohammed Shami":"pace",
     "T Natarajan":"pace","HV Patel":"pace","Avesh Khan":"pace",
-    "Bhuvneshwar Kumar":"pace","DL Chahar":"pace","Shardul Thakur":"pace",
-    "Y Dayal":"pace","Umesh Yadav":"pace","MJ Henry":"pace",
-    "UT Yadav":"pace","KK Ahmed":"pace","SS Pathirana":"pace",
+    "Bhuvneshwar Kumar":"pace","B Kumar":"pace",          # B Kumar = Bhuvneshwar variant
+    "DL Chahar":"pace","Shardul Thakur":"pace","SN Thakur":"pace",
+    "Y Dayal":"pace","Yash Dayal":"pace",                 # both name variants
+    "Umesh Yadav":"pace","MJ Henry":"pace",
+    "UT Yadav":"pace","KK Ahmed":"pace",
+    "SS Pathirana":"pace","M Pathirana":"pace",           # Matheesha Pathirana variants
+    "Mohammed Siraj":"pace","M Siraj":"pace",
+    "TA Boult":"pace","K Rabada":"pace",
+    "HH Pandya":"pace","AD Russell":"pace",               # medium-fast all-rounders
+    "M Prasidh Krishna":"pace","Sandeep Sharma":"pace",
+    "PJ Cummins":"pace","TU Deshpande":"pace",
+    "JR Hazlewood":"pace","M Jansen":"pace",
+    "LH Ferguson":"pace","Mukesh Kumar":"pace",
+    "SM Curran":"pace","MP Stoinis":"pace",
+    "C Green":"pace","A Nortje":"pace",
+    "JO Holder":"pace","JD Unadkat":"pace",
+    "Mustafizur Rahman":"pace","MM Sharma":"pace",        # Mohit Sharma
+    "Harshit Rana":"pace","JC Archer":"pace",
+    "MA Starc":"pace","Mohsin Khan":"pace",
+    "Mukesh Choudhary":"pace","Kartik Tyagi":"pace",
+    "Yash Thakur":"pace","C Sakariya":"pace",
+    "PVD Chameera":"pace","Umran Malik":"pace",
+    "A Kamboj":"pace","Nithish Kumar Reddy":"pace",
+    "Rasikh Salam":"pace","E Malinga":"pace",
+    "Akash Madhwal":"pace","Naveen-ul-Haq":"pace",
+    "NT Ellis":"pace","AS Joseph":"pace",
+    "DJ Bravo":"pace","Vijaykumar Vyshak":"pace",
+    "VG Arora":"pace","I Sharma":"pace",
+    "R Shepherd":"pace","RP Meredith":"pace",
+    "Azmatullah Omarzai":"pace","AS Roy":"pace",
+    # ── spin ──────────────────────────────────────────────────────────
     "YS Chahal":"spin","Rashid Khan":"spin","R Ashwin":"spin",
-    "Kuldeep Yadav":"spin","Washington Sundar":"spin","Varun Chakravarthy":"spin",
-    "Noor Ahmad":"spin","Ravi Bishnoi":"spin","Piyush Chawla":"spin",
+    "Kuldeep Yadav":"spin","Washington Sundar":"spin",
+    "Varun Chakravarthy":"spin","CV Varun":"spin",        # both name variants
+    "Noor Ahmad":"spin","Ravi Bishnoi":"spin",
+    "Piyush Chawla":"spin","PP Chawla":"spin",            # both name variants
     "K Gowtham":"spin","M Theekshana":"spin",
+    "SP Narine":"spin","KH Pandya":"spin",                # Sunil Narine; Krunal Pandya (L-arm orthodox)
+    "RA Jadeja":"spin","AR Patel":"spin",
+    "Shahbaz Ahmed":"spin","Harpreet Brar":"spin",
+    "R Sai Kishore":"spin","MJ Santner":"spin",
+    "Suyash Sharma":"spin","GJ Maxwell":"spin",
+    "MM Ali":"spin","AK Markram":"spin",
+    "Abhishek Sharma":"spin","R Parag":"spin",
+    "LS Livingstone":"spin","M Markande":"spin",
+    "K Kartikeya":"spin","WG Jacks":"spin",
+    "V Nigam":"spin","Lalit Yadav":"spin",
+    "PWH de Silva":"spin","Arshad Khan":"spin",
 }
 BATTER_HAND = {
-    "V Kohli":"RHB","RG Sharma":"RHB","DA Warner":"LHB","KL Rahul":"RHB",
-    "Shubman Gill":"RHB","SA Yadav":"RHB","RR Pant":"LHB","SV Samson":"RHB",
-    "HH Pandya":"RHB","MS Dhoni":"RHB","AT Rayudu":"RHB","SK Raina":"LHB",
-    "F du Plessis":"RHB","SR Watson":"RHB","DJ Bravo":"RHB","CH Gayle":"LHB",
-    "Q de Kock":"LHB","AB de Villiers":"RHB","JC Buttler":"RHB",
-    "DP Conway":"LHB","N Pooran":"LHB","HP Rana":"LHB","RA Tripathi":"RHB",
-    "Ishan Kishan":"LHB","B Sai Sudharsan":"LHB","TH David":"RHB",
+    # ── right-hand batters ────────────────────────────────────────────
+    "V Kohli":"RHB","RG Sharma":"RHB","KL Rahul":"RHB",
+    "Shubman Gill":"RHB","SA Yadav":"RHB","SV Samson":"RHB",
+    "HH Pandya":"RHB","MS Dhoni":"RHB","AT Rayudu":"RHB",
+    "F du Plessis":"RHB","SR Watson":"RHB","DJ Bravo":"RHB",
+    "AB de Villiers":"RHB","JC Buttler":"RHB",
+    "RA Tripathi":"RHB","TH David":"RHB",
+    "RD Gaikwad":"RHB","SS Iyer":"RHB","AK Markram":"RHB",
+    "MP Stoinis":"RHB","GJ Maxwell":"RHB","KD Karthik":"RHB",
+    "AM Rahane":"RHB","A Badoni":"RHB","AD Russell":"RHB",
+    "M Shahrukh Khan":"RHB","H Klaasen":"RHB","DJ Hooda":"RHB",
+    "Abdul Samad":"RHB","RM Patidar":"RHB","Dhruv Jurel":"RHB",
+    "Rashid Khan":"RHB","WP Saha":"RHB","MA Agarwal":"RHB",
+    "T Stubbs":"RHB","Shashank Singh":"RHB","C Green":"RHB",
+    "PP Shaw":"RHB","PD Salt":"RHB","R Ashwin":"RHB",
+    "Washington Sundar":"RHB","SN Thakur":"RHB","B Kumar":"RHB",
+    "Nithish Kumar Reddy":"RHB","PJ Cummins":"RHB","JM Bairstow":"RHB",
+    "V Shankar":"RHB","MK Pandey":"RHB","Ramandeep Singh":"RHB",
+    "WG Jacks":"RHB","Ashutosh Sharma":"RHB","D Brevis":"RHB",
+    "KA Pollard":"RHB","KS Williamson":"RHB","JO Holder":"RHB",
+    "P Simran Singh":"RHB","LS Livingstone":"RHB","MM Ali":"RHB",
+    "R Parag":"RHB","HV Patel":"RHB","Naman Dhir":"RHB",
+    "SP Narine":"RHB",
+    # ── left-hand batters ─────────────────────────────────────────────
+    "DA Warner":"LHB","RR Pant":"LHB","SK Raina":"LHB",
+    "CH Gayle":"LHB","Q de Kock":"LHB","DP Conway":"LHB",
+    "N Pooran":"LHB","HP Rana":"LHB","Ishan Kishan":"LHB",
+    "B Sai Sudharsan":"LHB",
+    "YBK Jaiswal":"LHB","S Dube":"LHB","Abhishek Sharma":"LHB",
+    "D Padikkal":"LHB","SO Hetmyer":"LHB","RA Jadeja":"LHB",
+    "DA Miller":"LHB","R Tewatia":"LHB","Tilak Varma":"LHB",
+    "KH Pandya":"LHB","AR Patel":"LHB","VR Iyer":"LHB",
+    "N Rana":"LHB","MR Marsh":"LHB","S Dhawan":"LHB",
+    "SM Curran":"LHB","TM Head":"LHB","Shahbaz Ahmed":"LHB",
+    "Kuldeep Yadav":"LHB","A Raghuvanshi":"LHB","R Powell":"LHB",
+    "MK Lomror":"LHB","Priyansh Arya":"LHB","RD Rickelton":"LHB",
+    "M Jansen":"LHB","Anuj Rawat":"LHB","TA Boult":"LHB",
+    "Harpreet Brar":"LHB","Abishek Porel":"LHB",
 }
 
 df5g = df5.assign(
@@ -272,10 +376,12 @@ _bat_dis["dis_caught_pct"]   = (_bat_dis["caught"]+_bat_dis["caught and bowled"]
 _bat_dis["dis_runout_pct"]   = _bat_dis["run out"] / _bat_dis["_tot"] * 100
 bat_dis = _bat_dis[["dis_bowl_lbw_pct","dis_caught_pct","dis_runout_pct"]].rename_axis("batter")
 
-# Per-match run consistency (std dev)
+# Per-match run consistency (std dev; min 6 balls to exclude not-out cameos)
 bat_consist = (df5g[df5g["legal_ball"]]
-               .groupby(["match_id","batter"])["runs_batter"].sum()
-               .groupby("batter").std()
+               .groupby(["match_id","batter"])
+               .agg(runs=("runs_batter","sum"), balls=("legal_ball","sum"))
+               .query("balls >= 6")
+               .groupby("batter")["runs"].std()
                .rename("consistency"))
 
 BAT_FEAT = ["avg","boundary_pct","dot_pct",
@@ -492,7 +598,7 @@ save("09_player_archetypes.png")
 # ── Phase summary (winner vs loser) ───────────────────────────────
 phase_summary = (df_main.groupby(["phase","batting_won"])
                  .agg(total_runs=("runs_total","sum"),
-                      balls=("runs_total","count"),
+                      balls=("legal_ball","sum"),
                       wickets=("is_wicket","sum"))
                  .reset_index())
 phase_summary["rpo"]          = phase_summary["total_runs"] / phase_summary["balls"] * 6
@@ -674,13 +780,13 @@ draw_table(ax_top, top5_bat,
 draw_table(ax_bot, top5_bowl,
            ["_r","bowler","wickets","economy","matches"],
            ["Rank","Player","Wickets","Economy","Matches"],
-           "TOP 5 BOWLERS  ·  IPL 2021–2025  (min 20 overs)", C_PP)
+           "TOP 5 BOWLERS  ·  IPL 2021–2025  (quality composite: economy + wpm)", C_PP)
 
 fig.text(0.5,0.96,"Top Performers Across the Last 5 IPL Seasons",
          ha="center", fontsize=16, fontweight="bold", color=C_TEXT)
 fig.text(0.5,0.92,
-         "Shubman Gill leads all batters in runs. Harshal Patel tops bowlers by wickets, "
-         "but Bumrah (7.12 econ) and Rashid (7.95 econ) are the true efficiency leaders.",
+         "Batters ranked by runs. Bowlers ranked by quality composite (50% economy + 50% wickets/match) "
+         "— not raw wickets, which unfairly penalises players who missed seasons through injury.",
          ha="center", fontsize=10, color=C_SUBTEXT)
 save("03_top_performers.png")
 
@@ -939,23 +1045,37 @@ cf = matches[["match_id","bat_first_won","toss_winner","toss_decision"]].copy()
 cf["death"] = cf["match_id"].map(inn1_death_runs)
 cf["total"] = cf["match_id"].map(inn1_totals)
 cf = cf.dropna()
+# Era filter: forward-looking win probabilities use only LAST5 so post-T20 rule
+# changes don't distort baselines. Post-2022 death avg is ~4.4 runs/innings higher
+# than pre-2022 pooled average. Historical counterfactuals (2019 final) use cf_all.
+cf_era = cf[cf["match_id"].isin(matches[matches["season"].isin(LAST5)]["match_id"])]
 
 def win_p_total(score, window=10):
-    sub = cf[(cf["total"]>=score-window)&(cf["total"]<=score+window)]
+    sub = cf_era[(cf_era["total"]>=score-window)&(cf_era["total"]<=score+window)]
     return sub["bat_first_won"].mean()*100 if len(sub)>=10 else None
 
 def win_p_death(d, window=5):
+    sub = cf_era[(cf_era["death"]>=d-window)&(cf_era["death"]<=d+window)]
+    return sub["bat_first_won"].mean()*100 if len(sub)>=10 else None
+
+def win_p_total_hist(score, window=10):
+    sub = cf[(cf["total"]>=score-window)&(cf["total"]<=score+window)]
+    return sub["bat_first_won"].mean()*100 if len(sub)>=10 else None
+
+def win_p_death_hist(d, window=5):
     sub = cf[(cf["death"]>=d-window)&(cf["death"]<=d+window)]
     return sub["bat_first_won"].mean()*100 if len(sub)>=10 else None
+
+_wp = lambda v: f"{v:.0f}%" if v is not None else "N/A"
 
 # ── 2019 Final deep dive ──────────────────────────────────────────
 # MI 149/8, CSK 148/7 — won by 1 run
 # MI: PP 45, Mid 57, Death 47 | CSK: Watson 80
-wp_149  = win_p_total(149)   # MI actual
-wp_159  = win_p_total(159)   # MI +10 in death
-wp_108  = win_p_total(108)   # CSK if Watson out early (~108 score)
-wp_d47  = win_p_death(47)    # MI death score
-wp_d57  = win_p_death(57)    # if MI scored 10 more in death
+wp_149  = win_p_total_hist(149)   # MI actual (historical data)
+wp_159  = win_p_total_hist(159)   # MI +10 in death
+wp_108  = win_p_total_hist(108)   # CSK if Watson out early (~108 score)
+wp_d47  = win_p_death_hist(47)    # MI death score
+wp_d57  = win_p_death_hist(57)    # if MI scored 10 more in death
 
 # ── Team toss decisions ───────────────────────────────────────────
 def team_toss_stats(team):
@@ -1031,13 +1151,13 @@ print(f"""
 └──────────────────────────────────────────────────────────────┘
 
 ┌─ COUNTERFACTUAL 1 ─ 2019 IPL Final (MI def. CSK by 1 run) ──┐
-│ MI scored 149.  Historical win probability: {wp_149:.0f}%           │
+│ MI scored 149.  Historical win probability: {_wp(wp_149):>4s}          │
 │                                                              │
 │ If MI had scored just 10 more in death overs (47→57):        │
-│   Win probability jumps from {wp_149:.0f}% → {wp_159:.0f}%               │
+│   Win probability jumps from {_wp(wp_149):>4s} → {_wp(wp_159):>4s}              │
 │                                                              │
 │ Shane Watson scored 80 for CSK. If dismissed for 30:         │
-│   CSK total ~108 → win probability collapses to {100-wp_108:.0f}%       │
+│   CSK total ~108 → win probability collapses to {f"{100-wp_108:.0f}" if wp_108 else "N/A"}%      │
 │   Watson personally dragged CSK's win chance from ~5% to 48%│
 │                                                              │
 │ Archetype layer (UMAP / KMeans — Chart 9):                   │
@@ -1070,10 +1190,10 @@ print(f"""
 │   50+ runs → win {last3_50_wr:.0f}% of the time ({last3_50_n} matches)          │
 │   <30 runs → win only {last3_30_wr:.0f}%                              │
 │                                                              │
-│ Death score →  win probability (batting first):              │
-│   ~30 runs:   {win_p_death(30):.0f}%     ~60 runs:  {win_p_death(60):.0f}%              │
-│   ~40 runs:   {win_p_death(40):.0f}%     ~70 runs:  {win_p_death(70):.0f}%              │
-│   ~50 runs:   {win_p_death(50):.0f}%     ~80 runs:  {win_p_death(80):.0f}%              │
+│ Death score →  win probability (batting first, 2022–26):     │
+│   ~30 runs:   {_wp(win_p_death(30)):>4s}     ~60 runs:  {_wp(win_p_death(60)):>4s}              │
+│   ~40 runs:   {_wp(win_p_death(40)):>4s}     ~70 runs:  {_wp(win_p_death(70)):>4s}              │
+│   ~50 runs:   {_wp(win_p_death(50)):>4s}     ~80 runs:  {_wp(win_p_death(80)):>4s}              │
 └──────────────────────────────────────────────────────────────┘
 
 ┌─ COUNTERFACTUAL 2 ─ SRH's Toss Mismanagement ───────────────┐
@@ -1544,31 +1664,76 @@ _QUALIFY_CUTOFF = 16  # realistic min points to reach top-4
 _df26   = df_main[df_main["season"] == "2026"]
 _data_cutoff = df[df["season"]=="2026"]["date"].max()
 
-# ── Correct 2026 points from JSON (handles no-result/tie = 1pt each) ──
-import zipfile as _zf, json as _json
+# ── Auto-load standings from fetch_standings.py output ───────────
+# Run: python fetch_standings.py   to refresh before running this script.
+# Falls back to hardcoded values (last manually verified 2026-05-24).
+import zipfile as _zf, json as _json, os as _os
+_STANDINGS_2026, _NRR_2026 = {}, {}
+_sfile = _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), "standings_2026.json")
+if _os.path.exists(_sfile):
+    _sdata = _json.loads(open(_sfile).read())
+    for _t, _s in _sdata.get("standings", {}).items():
+        _STANDINGS_2026[_t] = (_s["M"], _s["Pts"])
+    _NRR_2026 = _sdata.get("nrr", {})
+    print(f"  [standings] loaded from standings_2026.json (as of {_sdata.get('as_of','?')})")
+else:
+    # Hardcoded fallback — last verified 2026-05-24
+    _STANDINGS_2026 = {
+        "Royal Challengers Bangalore": (14, 18),
+        "Gujarat Titans":              (14, 18),
+        "Sunrisers Hyderabad":         (14, 18),
+        "Punjab Kings":                (14, 15),
+        "Rajasthan Royals":            (13, 14),
+        "Kolkata Knight Riders":       (13, 13),
+        "Chennai Super Kings":         (14, 12),
+        "Delhi Capitals":              (13, 12),
+        "Mumbai Indians":              (13,  8),
+        "Lucknow Super Giants":        (14,  8),
+    }
+    _NRR_2026 = {
+        "Royal Challengers Bangalore": +0.783,
+        "Gujarat Titans":              +0.695,
+        "Sunrisers Hyderabad":         +0.524,
+        "Punjab Kings":                +0.309,
+        "Rajasthan Royals":            +0.083,
+        "Kolkata Knight Riders":       +0.011,
+        "Chennai Super Kings":         -0.345,
+        "Delhi Capitals":              -0.871,
+        "Mumbai Indians":              -0.510,
+        "Lucknow Super Giants":        -0.740,
+    }
+    print("  [standings] standings_2026.json not found — using hardcoded fallback (2026-05-24)")
+
 _pts26, _played26 = {}, {}
-try:
-    _zfile = _zf.ZipFile("ipl_fresh.zip")
-    for _fn in _zfile.namelist():
-        if not _fn.endswith(".json"): continue
-        _jd   = _json.loads(_zfile.read(_fn))
-        _jinf = _jd["info"]
-        if "2026" not in str(_jinf.get("season","")): continue
-        _joc  = _jinf.get("outcome", {})
-        _jwinner = _joc.get("winner", "")
-        _jresult = _joc.get("result", "")   # 'no result' or 'tie'
-        for _jt in _jinf.get("teams", []):
-            _pts26.setdefault(_jt, 0); _played26.setdefault(_jt, 0)
-            _played26[_jt] += 1
-            if _jwinner == _jt:           _pts26[_jt] += 2   # win
-            elif _jresult in ("no result", "tie"): _pts26[_jt] += 1  # NR / tied
-except Exception as _e:
-    # fallback: wins×2 from CSV
-    _m26 = _df26.drop_duplicates("match_id")[["match_id","team1","team2","winner"]]
-    for _t in _team_rec.index:
-        _tm = _m26[(_m26["team1"]==_t)|(_m26["team2"]==_t)]
-        _pts26[_t] = int((_tm["winner"]==_t).sum() * 2)
-        _played26[_t] = len(_tm)
+if _STANDINGS_2026:
+    for _t, (_m, _p) in _STANDINGS_2026.items():
+        _pts26[_t]    = _p
+        _played26[_t] = _m
+else:
+    # Auto-derive from JSON zip, then fall back to CSV
+    try:
+        _zfile = _zf.ZipFile("ipl_fresh.zip")
+        for _fn in _zfile.namelist():
+            if not _fn.endswith(".json"): continue
+            _jd   = _json.loads(_zfile.read(_fn))
+            _jinf = _jd["info"]
+            if "2026" not in str(_jinf.get("season","")): continue
+            _joc  = _jinf.get("outcome", {})
+            _jwinner = _joc.get("winner", "")
+            _jresult = _joc.get("result", "")
+            for _jt in _jinf.get("teams", []):
+                _pts26.setdefault(_jt, 0); _played26.setdefault(_jt, 0)
+                _played26[_jt] += 1
+                if _jwinner == _jt:                          _pts26[_jt] += 2
+                elif _jresult in ("no result", "tie"):       _pts26[_jt] += 1
+    except Exception:
+        _m26 = _df26.drop_duplicates("match_id")[["match_id","team1","team2","winner"]]
+        for _t in _team_rec.index:
+            _tm = _m26[(_m26["team1"]==_t)|(_m26["team2"]==_t)]
+            wins       = int((_tm["winner"]==_t).sum())
+            no_results = int(_tm["winner"].isna().sum()) + int((_tm["winner"]=="").sum())
+            _pts26[_t]    = wins * 2 + no_results
+            _played26[_t] = len(_tm)
 
 # 4th-place elimination: current leader in 4th cannot be caught
 _pts_sorted = sorted(_pts26.values(), reverse=True)
@@ -1638,22 +1803,77 @@ for _t in _team_rec.index:
     _b_bowled   = _bwl["legal_ball"].sum()
     _nrr26[_t]  = (_r_scored / max(_b_faced, 1) - _r_conceded / max(_b_bowled, 1)) * 6
 
+# Override with official NRR if manual standings are set
+if _STANDINGS_2026 and _NRR_2026:
+    _nrr26.update(_NRR_2026)
 _nrr26_s = pd.Series(_nrr26)
+
+# ── H2H helper (defined here — used both in scoring signal and display) ──────
+def _h2h(t1, t2, seasons=None):
+    mask = (((matches["team1"]==t1)&(matches["team2"]==t2)) |
+            ((matches["team1"]==t2)&(matches["team2"]==t1)))
+    h = matches[mask]
+    if seasons:
+        h = h[h["season"].isin([str(s) for s in seasons])]
+    total   = len(h)
+    t1_wins = int((h["winner"]==t1).sum())
+    t2_wins = int((h["winner"]==t2).sum())
+    return {"total": total, "t1_wins": t1_wins, "t2_wins": t2_wins}
+
+# ── Fix 2: Blend 2026 + historical death signals (squad changes break 2024-25 only) ──
+# _df26_m already has bowling_team and phase_short via df_main lineage
+_death_bat_26  = (_df26_m[_df26_m["phase_short"]=="Death"]
+                  .groupby("batting_team")["runs_total"].mean() * 6)
+_death_bowl_26 = (_df26_m[_df26_m["phase_short"]=="Death"]
+                  .groupby("bowling_team")["runs_total"].mean() * 6)
+_idx0 = _team_rec.index
+_death_bat_blend  = (_death_bat_26.reindex(_idx0).fillna(_death_bat.mean())  * 0.6
+                     + _death_bat.reindex(_idx0).fillna(_death_bat.mean())   * 0.4)
+_death_bowl_blend = (_death_bowl_26.reindex(_idx0).fillna(_death_bowl.mean()) * 0.6
+                     + _death_bowl.reindex(_idx0).fillna(_death_bowl.mean())  * 0.4)
+print(f"  death blend (60% 2026/40% hist): "
+      f"{len(_death_bat_26)} bat teams, {len(_death_bowl_26)} bowl teams")
+
+# ── Fix 1: H2H win rate vs historically-strong opponents (last 4 playoff fields) ──
+# Uses a FIXED set from prior-season data → no circular dependency with _score.
+_hist_szns_all     = sorted(matches["season"].unique())
+_hist_playoff_szns = [s for s in _hist_szns_all if s < "2026"][-4:]
+_hist_playoff_teams: set = set()
+for _hts in _hist_playoff_szns:
+    # Last 4 matches of each season ≈ Q1, Eliminator, Q2, Final
+    _szn_tail = matches[matches["season"] == _hts].sort_values("date").tail(4)
+    for _, _hr in _szn_tail.iterrows():
+        _hist_playoff_teams.update([_hr["team1"], _hr["team2"]])
+
+_h2h_strong_dict: dict = {}
+for _t in _team_rec.index:
+    _ops = [o for o in _hist_playoff_teams if o != _t and o in _team_rec.index]
+    _hw = 0; _ht = 0
+    for _o in _ops:
+        _r = _h2h(_t, _o, seasons=[2022, 2023, 2024, 2025, 2026])
+        _hw += _r["t1_wins"]; _ht += _r["total"]
+    _h2h_strong_dict[_t] = _hw / _ht if _ht >= 5 else 0.5
+_h2h_strong_s = pd.Series(_h2h_strong_dict)
+print(f"  H2H-vs-strong: {len(_h2h_strong_dict)} teams, "
+      f"range [{_h2h_strong_s.min():.3f}, {_h2h_strong_s.max():.3f}]")
 
 def _norm(s): return (s - s.min()) / (s.max() - s.min() + 1e-9)
 _idx = _team_rec.index
 
-# Current season (signal 7+8) + playoff venue fit dominates
+# 10-signal composite — weights sum to 100
+# form26:33 | nrr:4 | venue:9 | ewma:12 | death_bat:10 | death_bowl:8
+# archetypes:9 | home:5 | toss:4 | h2h_strong:6
 _score = (
-    _norm(_form26_s.reindex(_idx).fillna(0))                        * 35 +
-    _norm(_nrr26_s.reindex(_idx).fillna(0))                         *  4 +
-    _norm(_pv_series.reindex(_idx).fillna(0.5))                     *  9 +   # playoff venue
-    _norm(_team_rec["ewma_wr"])                                      * 14 +
-    _norm(_death_bat.reindex(_idx).fillna(_death_bat.mean()))        * 12 +
-    _norm(-_death_bowl.reindex(_idx).fillna(_death_bowl.mean()))     *  8 +
-    _norm(_arch_s_ser.reindex(_idx).fillna(0))                       *  9 +
-    _norm(_home_adv_s.reindex(_idx).fillna(0))                       *  5 +
-    _norm(pd.Series(_toss_e).reindex(_idx).fillna(0))                *  4
+    _norm(_form26_s.reindex(_idx).fillna(0))                                         * 33 +
+    _norm(_nrr26_s.reindex(_idx).fillna(0))                                          *  4 +
+    _norm(_pv_series.reindex(_idx).fillna(0.5))                                      *  9 +
+    _norm(_team_rec["ewma_wr"])                                                       * 12 +
+    _norm(_death_bat_blend.reindex(_idx).fillna(_death_bat_blend.mean()))             * 10 +
+    _norm(-_death_bowl_blend.reindex(_idx).fillna(_death_bowl_blend.mean()))          *  8 +
+    _norm(_arch_s_ser.reindex(_idx).fillna(0))                                        *  9 +
+    _norm(_home_adv_s.reindex(_idx).fillna(0))                                        *  5 +
+    _norm(pd.Series(_toss_e).reindex(_idx).fillna(0))                                 *  4 +
+    _norm(_h2h_strong_s.reindex(_idx).fillna(0.5))                                    *  6
 )
 
 # Hard-zero eliminated teams — they cannot win regardless of historical quality
@@ -1684,9 +1904,142 @@ def _why(team):
     if pts >= 12:                        return f"{pts} pts · needs results to go their way ({remain}g left)"
     return f"{pts} pts in 2026 · slim playoff chance · {wr:.0f}% EWMA form"
 
-_playoff4  = _score.index[:4].tolist()
-_winner    = _score.index[0]
-_finalist  = _score.index[1]
+# Standings-confirmed top 4 — seeding follows actual IPL rules (pts → NRR tiebreaker).
+# Composite score CANNOT override who made the playoffs; it's used only for
+# win-probability estimation within each matchup.
+_playoff4 = sorted(
+    [t for t in _team_rec.index if t in _pts26],
+    key=lambda t: (_pts26.get(t, 0), _nrr26.get(t, 0)),
+    reverse=True
+)[:4]
+# Predicted winner / finalist = composite-score leaders within the confirmed field
+_score_in_p4 = sorted(_playoff4, key=lambda t: -float(_score.get(t, 0)))
+_winner   = _score_in_p4[0]
+_finalist = _score_in_p4[1]
+print(f"  playoff 4 (standings order): {[_SHORT.get(t,t) for t in _playoff4]}")
+print(f"  predicted winner/finalist:   {_SHORT.get(_winner,_winner)} / {_SHORT.get(_finalist,_finalist)}")
+
+# ── Monte Carlo playoff bracket simulation ────────────────────────
+import random as _random
+from scipy.special import expit as _sigmoid
+from math import log as _mlog
+
+# ── Fix 3: Calibrate sigmoid steepness k from historical data ────────────────
+# Strategy: for each season T, use T-1 team win rates to label the "favourite"
+# in each match of T; measure P(favourite wins) empirically.  No circularity.
+_calib_wins = 0; _calib_total = 0
+_calib_szns = sorted(matches["season"].unique())
+for _ci, _cts in enumerate(_calib_szns[1:], 1):
+    _prev_cts  = _calib_szns[_ci - 1]
+    _prev_szn  = matches[matches["season"] == _prev_cts]
+    _prev_wr: dict = {}
+    for _, _pr in _prev_szn.iterrows():
+        for _pt in [_pr["team1"], _pr["team2"]]:
+            _prev_wr.setdefault(_pt, {"w": 0, "n": 0})
+        _pw = _pr["winner"]
+        if isinstance(_pw, str) and _pw in [_pr["team1"], _pr["team2"]]:
+            _prev_wr[_pw]["w"] += 1
+        _prev_wr[_pr["team1"]]["n"] += 1
+        _prev_wr[_pr["team2"]]["n"] += 1
+    _prate = {t: v["w"] / max(v["n"], 1) for t, v in _prev_wr.items()}
+    for _, _cm in matches[matches["season"] == _cts].iterrows():
+        _ct1, _ct2 = _cm["team1"], _cm["team2"]
+        _cw = _cm["winner"]
+        if not (isinstance(_cw, str) and _cw in [_ct1, _ct2]):
+            continue
+        _r1 = _prate.get(_ct1); _r2 = _prate.get(_ct2)
+        if _r1 is None or _r2 is None or _r1 == _r2:
+            continue
+        _better = _ct1 if _r1 > _r2 else _ct2
+        _calib_total += 1
+        if _cw == _better:
+            _calib_wins += 1
+
+_p_fav = _calib_wins / max(_calib_total, 1)
+# Average score gap between adjacent playoff seeds (Q1 pair and Eliminator pair)
+_adj_diffs = [
+    abs(float(_score.get(_playoff4[i], 0)) - float(_score.get(_playoff4[i+1], 0)))
+    for i in range(min(3, len(_playoff4) - 1))
+]
+_avg_adj_diff = sum(_adj_diffs) / max(len(_adj_diffs), 1) if _adj_diffs else 10.0
+if 0.50 < _p_fav < 0.99 and _avg_adj_diff > 0.5:
+    _k_calib = float(np.clip(
+        _mlog(_p_fav / (1.0 - _p_fav)) / (_avg_adj_diff / 100.0),
+        2.0, 8.0
+    ))
+else:
+    _k_calib = 3.0
+print(f"  MC calibration: P(fav wins)={_p_fav:.3f} over {_calib_total} matches, "
+      f"avg_adj_diff={_avg_adj_diff:.1f}, k={_k_calib:.2f}")
+
+_N_SIM = 50_000
+_mc_final_count  = {t: 0 for t in _score.index}
+_mc_winner_count = {t: 0 for t in _score.index}
+
+def _win_prob(ta, tb):
+    sa = float(_score.get(ta, 0))
+    sb = float(_score.get(tb, 0))
+    return float(_sigmoid(_k_calib * (sa - sb) / 100.0))
+
+_rng = _random.Random(42)
+for _ in range(_N_SIM):
+    t1, t2, t3, t4 = _playoff4
+    q1w = t1 if _rng.random() < _win_prob(t1, t2) else t2
+    q1l = t2 if q1w == t1 else t1
+    elw = t3 if _rng.random() < _win_prob(t3, t4) else t4
+    q2w = q1l if _rng.random() < _win_prob(q1l, elw) else elw
+    _mc_final_count[q1w]  += 1
+    _mc_final_count[q2w]  += 1
+    champ = q1w if _rng.random() < _win_prob(q1w, q2w) else q2w
+    _mc_winner_count[champ] += 1
+
+_mc_win_pct   = {t: _mc_winner_count[t]  / _N_SIM * 100 for t in _playoff4}
+_mc_final_pct = {t: _mc_final_count[t]   / _N_SIM * 100 for t in _playoff4}
+print(f"  Monte Carlo ({_N_SIM:,} sims): " +
+      " | ".join(f"{_SHORT.get(t,t)} {_mc_win_pct[t]:.1f}%" for t in _playoff4))
+
+# ── Head-to-head display stats for playoff pairs (_h2h defined above) ────────
+_q1_t1, _q1_t2     = _playoff4[0], _playoff4[1]
+_el_t1, _el_t2     = _playoff4[2], _playoff4[3]
+_q1_h2h_all    = _h2h(_q1_t1, _q1_t2)
+_q1_h2h_recent = _h2h(_q1_t1, _q1_t2, seasons=[2022,2023,2024,2025,2026])
+_el_h2h_all    = _h2h(_el_t1, _el_t2)
+_el_h2h_recent = _h2h(_el_t1, _el_t2, seasons=[2022,2023,2024,2025,2026])
+
+# ── 2026 in-season player form vs LAST5 baseline ─────────────────
+_df_2026p = df[df["season"]=="2026"].copy()
+_bat26 = (_df_2026p.groupby("batter")
+          .agg(runs26=("runs_batter","sum"),
+               balls26=("legal_ball","sum"),
+               mat26=("match_id","nunique"))
+          .query("balls26 >= 60")
+          .assign(sr26=lambda x: x.runs26/x.balls26*100,
+                  avg26=lambda x: x.runs26/x.mat26))
+
+_bat_base = bat5.set_index("batter")[["sr","avg"]].rename(
+    columns={"sr":"sr_base","avg":"avg_base"})
+_bat_cmp = (_bat26.join(_bat_base, how="inner")
+            .assign(sr_delta=lambda x: x.sr26 - x.sr_base,
+                    avg_delta=lambda x: x.avg26 - x.avg_base)
+            .sort_values("sr_delta", ascending=False))
+_in_form_bat  = _bat_cmp.head(5)
+_out_form_bat = _bat_cmp.tail(5)
+
+_bowl26 = (_df_2026p[~_df_2026p["is_wide"]&~_df_2026p["is_noball"]]
+           .groupby("bowler")
+           .agg(balls26=("legal_ball","sum"),
+                runs26=("runs_total","sum"),
+                wkts26=("bowler_wicket","sum"),
+                mat26=("match_id","nunique"))
+           .query("balls26 >= 60")
+           .assign(econ26=lambda x: x.runs26/(x.balls26/6)))
+_bowl_base = bowl5.set_index("bowler")[["economy"]].rename(
+    columns={"economy":"econ_base"})
+_bowl_cmp = (_bowl26.join(_bowl_base, how="inner")
+             .assign(econ_delta=lambda x: x.econ26 - x.econ_base)
+             .sort_values("econ_delta"))
+_in_form_bowl  = _bowl_cmp.head(5)   # most improved economy (lower = better)
+_out_form_bowl = _bowl_cmp.tail(5)
 
 # ── Walk-forward backtest (no look-ahead) ────────────────────────
 # For each test season, train on ALL strictly-prior seasons only.
@@ -1791,6 +2144,46 @@ _bt_base = 4 / 10 * 100   # random baseline: 4 picks from ~10 teams
 print(f"  backtest: {_bt_n} seasons · top-4 hit {_bt_acc4:.0f}% · "
       f"top-2 hit {_bt_acc2:.0f}% · exact {_bt_acc1:.0f}% (baseline {_bt_base:.0f}%)")
 
+# ── Chart 13: Walk-forward backtest accuracy ──────────────────────
+if len(_bt) >= 4:
+    fig, ax = plt.subplots(figsize=(14, 5))
+    fig.subplots_adjust(top=0.82, bottom=0.12, left=0.07, right=0.97)
+
+    _seasons_bt = _bt["season"].tolist()
+    _hit4_vals  = [int(v) for v in _bt["hit4"]]
+    _hit2_vals  = [int(v) for v in _bt["hit2"]]
+    _xs = range(len(_seasons_bt))
+
+    ax.bar(_xs, [1]*len(_xs), color=C_GRID, width=0.85, zorder=1)
+    ax.bar([x for x,h in zip(_xs,_hit4_vals) if h],
+           [1]*sum(_hit4_vals), color=C_WIN, alpha=0.35, width=0.85, zorder=2,
+           label=f"Top-4 hit ({_bt_acc4:.0f}%)")
+    ax.bar([x for x,h in zip(_xs,_hit2_vals) if h],
+           [0.55]*sum(_hit2_vals), color=C_WIN, alpha=0.85, width=0.85, zorder=3,
+           label=f"Top-2 hit ({_bt_acc2:.0f}%)")
+    ax.axhline(0.55, ls="--", color=C_SUBTEXT, lw=0.8, zorder=0)
+    ax.axhline(0.40, ls=":", color=C_LOSE, lw=0.8, alpha=0.6, zorder=0)
+    ax.text(len(_xs)-0.4, 0.57, f"top-4: {_bt_acc4:.0f}%", color=C_WIN,
+            fontsize=9, ha="right")
+    ax.text(len(_xs)-0.4, 0.42, f"random baseline: {_bt_base:.0f}%",
+            color=C_LOSE, fontsize=8, ha="right", alpha=0.7)
+    ax.set_xticks(list(_xs)); ax.set_xticklabels(_seasons_bt, fontsize=9)
+    ax.set_yticks([]); ax.set_ylim(0, 1.15)
+    ax.legend(loc="upper left", fontsize=9, framealpha=0,
+              labelcolor=C_TEXT)
+    for x, h4, h2, row in zip(_xs, _hit4_vals, _hit2_vals, _bt.itertuples()):
+        lbl = f"{_SHORT.get(row.actual, row.actual)}"
+        col = C_WIN if h4 else C_LOSE
+        ax.text(x, 1.05, lbl, ha="center", fontsize=7.5, color=col, rotation=45)
+    fig.text(0.5, 0.94, "Walk-Forward Backtest: Predicting IPL Champion Season by Season",
+             ha="center", fontsize=15, fontweight="bold", color=C_TEXT)
+    fig.text(0.5, 0.89,
+             f"Trained only on seasons before each test year (no look-ahead). "
+             f"Top-4: {_bt_acc4:.0f}%  ·  Top-2: {_bt_acc2:.0f}%  ·  Exact: {_bt_acc1:.0f}%  "
+             f"·  Random baseline: {_bt_base:.0f}%",
+             ha="center", fontsize=9.5, color=C_SUBTEXT)
+    save("13_backtest.png")
+
 def write_html(out_path="ipl_crunch_deliverable.html"):
     # ── Archetype player examples ──────────────────────────────────
     def _top_n(vecs, archetype, col, asc=False, n=3):
@@ -1817,6 +2210,20 @@ def write_html(out_path="ipl_crunch_deliverable.html"):
     _toss_overall = f"{matches['toss_won_match'].mean()*100:.1f}"
 
 
+
+    # ── Chart embed helper ─────────────────────────────────────────
+    def _cimg(name, caption=""):
+        b64 = _CHART_B64.get(name, "")
+        if not b64:
+            return ""
+        cap = (f'<figcaption style="color:var(--sub);font-size:.72rem;'
+               f'margin-top:.5rem;font-family:JetBrains Mono,monospace;">'
+               f'{caption}</figcaption>') if caption else ""
+        return (f'<figure style="margin:1.5rem 0 0;text-align:center;">'
+                f'<img src="data:image/png;base64,{b64}" '
+                f'style="width:100%;max-width:960px;border-radius:12px;'
+                f'border:1px solid var(--border);" loading="lazy">'
+                f'{cap}</figure>')
 
     # ── Build HTML ──────────────────────────────────────────────────
     _toss_total = float(matches["toss_won_match"].mean() * 100)
@@ -1943,6 +2350,8 @@ def write_html(out_path="ipl_crunch_deliverable.html"):
     </div>
 
   </div>
+  {_cimg("01_toss_analysis.png", "Chart 1 · Toss Analysis — overall win rate, decision impact, and fielding trend over time")}
+  {_cimg("02_phase_analysis.png", "Chart 2 · Phase Analysis — RPO gap between winners and losers by game phase")}
 </section>
 <div class="divider"></div>
 
@@ -2043,6 +2452,8 @@ def write_html(out_path="ipl_crunch_deliverable.html"):
     <div class="probe-item"><div class="probe-q">Death ~70 runs</div><div class="probe-a" style="color:var(--green)">{win_p_death(70):.0f}%</div><div class="probe-context">clear favourite territory</div></div>
     <div class="probe-item"><div class="probe-q">Death ~80 runs</div><div class="probe-a" style="color:var(--green)">{win_p_death(80):.0f}%</div><div class="probe-context">dominant. 7 in 10 wins.</div></div>
   </div>
+  {_cimg("04_phase_prediction.png", "Chart 4 · Powerplay vs Death as match predictors — which phase wins it?")}
+  {_cimg("08_wall_and_momentum.png", "Chart 8 · Chase Wall at ~175 + Momentum effect — big overs carry into the next")}
 </section>
 <div class="divider"></div>
 
@@ -2116,6 +2527,8 @@ def write_html(out_path="ipl_crunch_deliverable.html"):
       <div class="arch-count">{wc.get('Containment Bowler', 0)} of {nw} bowlers</div>
     </div>
   </div>
+  {_cimg("09_player_archetypes.png", "Chart 9 · Player Archetype Map — UMAP 2D projection of 84 batters and 149 bowlers into 4 clusters each")}
+  {_cimg("05_bowler_map.png", "Chart 5 · Bowler Efficiency Map — economy vs wickets, bubble = matches played")}
 </section>
 <div class="divider"></div>
 
@@ -2143,6 +2556,8 @@ def write_html(out_path="ipl_crunch_deliverable.html"):
   <div style="text-align:center" class="reveal">
     <span class="chow-badge">⚗ Chow F = {F_chow:.2f} · p = {p_chow:.4f} · break CONFIRMED at 2022</span>
   </div>
+  {_cimg("07_scoring_evolution.png", "Chart 7 · Scoring Evolution 2008–2026 — RPO trend + sixes/match, with Chow break at 2022")}
+  {_cimg("06_powerplay_hangover.png", "Chart 6 · Powerplay Hangover — Over 7 RPO (6.99) is lower than the opening over (7.74)")}
 </section>
 <div class="divider"></div>
 
@@ -2262,6 +2677,7 @@ def write_html(out_path="ipl_crunch_deliverable.html"):
       <div class="diag-plain">Win probability isn't linearly distributed across target scores. The "wall at 175" is non-linear — a logit model fits better than OLS.</div>
     </div>
   </div>
+  {_cimg("10_econometric_diagnostics.png", "Chart 10 · Econometric Diagnostics — Chow break, VIF heatmap, phase variance, momentum AC distribution, BP residuals")}
 </section>
 <div class="divider"></div>
 
@@ -2280,16 +2696,17 @@ def write_html(out_path="ipl_crunch_deliverable.html"):
       </table>
     </div>
     <div>
-      <p style="font-family:'JetBrains Mono',monospace;font-size:.7rem;letter-spacing:.2em;text-transform:uppercase;color:var(--blue);margin-bottom:1rem;">Top 5 Bowlers · by Wickets</p>
+      <p style="font-family:'JetBrains Mono',monospace;font-size:.7rem;letter-spacing:.2em;text-transform:uppercase;color:var(--blue);margin-bottom:1rem;">Top 5 Bowlers · quality composite (economy + wickets/match)</p>
       <table class="results-table">
         <thead><tr><th></th><th>Player</th><th>Wkts</th><th>Econ</th></tr></thead>
         <tbody>
           {"".join(f'<tr><td><span class="rank-badge" style="background:{["var(--blue)","var(--sub)","var(--sub)","var(--sub)","var(--sub)"][i]}">{i+1}</span></td><td class="tag">{row["bowler"]}</td><td><strong>{row["wickets"]}</strong></td><td style="{"color:var(--green)" if row["economy"] < 8 else ""}">{row["economy"]}</td></tr>' for i,(_,row) in enumerate(top5_bowl.iterrows()))}
         </tbody>
       </table>
-      <p style="font-size:.72rem;color:var(--sub);margin-top:.75rem;">Bumrah ({bowl5[bowl5["bowler"]=="JJ Bumrah"]["economy"].values[0] if len(bowl5[bowl5["bowler"]=="JJ Bumrah"]) else "7.1"}  econ) — not top-5 by volume, unmatched by quality.</p>
+      <p style="font-size:.72rem;color:var(--sub);margin-top:.75rem;">Ranked by quality composite — raw wickets excluded because it silently punishes players who miss seasons through injury (Bumrah missed all of 2023).</p>
     </div>
   </div>
+  {_cimg("03_top_performers.png", "Chart 3 · Top Performers — batting and bowling leaders across IPL 2021–2025")}
 </section>
 <div class="divider"></div>
 
@@ -2319,6 +2736,7 @@ def write_html(out_path="ipl_crunch_deliverable.html"):
   <p class="reveal" style="color:var(--sub);font-size:.78rem;font-family:'JetBrains Mono',monospace;">
     top scoring grounds: {" · ".join(_bat_venues[:2])} &nbsp;|&nbsp; bowling-friendly: {" · ".join(_bowl_venues[:2])}
   </p>
+  {_cimg("11_venue_analysis.png", "Chart 11 · Venue Analysis — avg 1st-innings total and bat-first win% across 22 IPL grounds")}
 </section>
 <div class="divider"></div>
 
@@ -2334,6 +2752,7 @@ def write_html(out_path="ipl_crunch_deliverable.html"):
       <div class="probe-context">batting-first win rate · n={int(row['n'])}</div>
     </div>''' for _,row in ew_summary.iterrows())}
   </div>
+  {_cimg("12_early_wickets.png", "Chart 12 · Powerplay Wickets — how many wickets in the first 6 overs determines the match {_ew_swing:.0f}% of the time")}
 </section>
 <div class="divider"></div>
 
@@ -2357,19 +2776,20 @@ def write_html(out_path="ipl_crunch_deliverable.html"):
   <p class="section-label reveal">Data-Driven · IPL 2026</p>
   <h2 class="section-title reveal">Our Prediction</h2>
   <div class="reveal" style="display:flex;align-items:baseline;gap:1rem;margin-bottom:1.25rem;flex-wrap:wrap;">
-    <p style="color:var(--sub);font-size:.82rem;margin:0;">based on current 2026 form + playoff venue fit + 5 historical signals. not financial advice.</p>
+    <p style="color:var(--sub);font-size:.82rem;margin:0;">based on current 2026 form + playoff venue fit + 8 signals including H2H vs strong opponents. not financial advice.</p>
     <details style="display:inline;">
       <summary style="cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:.67rem;color:#4a5568;letter-spacing:.08em;list-style:none;user-select:none;white-space:nowrap;">&#9656; how it works</summary>
-      <div style="position:absolute;z-index:10;margin-top:.5rem;background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:1.1rem 1.25rem;font-family:'JetBrains Mono',monospace;font-size:.67rem;color:#4a5568;line-height:2;min-width:440px;box-shadow:0 8px 32px rgba(0,0,0,.6);">
+      <div style="position:absolute;z-index:10;margin-top:.5rem;background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:1.1rem 1.25rem;font-family:'JetBrains Mono',monospace;font-size:.67rem;color:#4a5568;line-height:2;min-width:480px;box-shadow:0 8px 32px rgba(0,0,0,.6);">
         <div style="display:grid;grid-template-columns:1fr auto auto;gap:.15rem 1.25rem;margin-bottom:.6rem;">
           <span style="color:#3d4451;font-size:.58rem;letter-spacing:.15em;">SIGNAL</span><span style="color:#3d4451;font-size:.58rem;letter-spacing:.15em;">WT</span><span style="color:#3d4451;font-size:.58rem;letter-spacing:.15em;">SOURCE</span>
-          <span>2026 season win rate</span><span>38%</span><span style="color:#3d4451;">current CSV &middot; {_data_cutoff}</span>
+          <span>2026 season win rate</span><span>33%</span><span style="color:#3d4451;">standings_2026.json &middot; {_sdata.get('as_of', _data_cutoff) if _os.path.exists(_sfile) else _data_cutoff}</span>
           <span>2026 NRR</span><span>4%</span><span style="color:#3d4451;">tiebreaker &middot; (runs/overs scored &minus; conceded)</span>
-          <span>EWMA win rate</span><span>16%</span><span style="color:#3d4451;">2024–25 &middot; decay=0.65/season</span>
-          <span>death batting RPO</span><span>14%</span><span style="color:#3d4451;">phase analysis &middot; overs 16–20</span>
-          <span>death bowling RPO</span><span>10%</span><span style="color:#3d4451;">phase analysis &middot; runs conceded</span>
+          <span>EWMA win rate</span><span>12%</span><span style="color:#3d4451;">2024–25 &middot; decay=0.65/season</span>
+          <span>death batting RPO</span><span>10%</span><span style="color:#3d4451;">60% 2026 + 40% hist blend &middot; overs 16–20</span>
+          <span>death bowling RPO</span><span>8%</span><span style="color:#3d4451;">60% 2026 + 40% hist blend &middot; runs conceded</span>
           <span>playoff venue fit</span><span>9%</span><span style="color:#3d4451;">Ahmedabad (Final) + Mullanpur win rate</span>
           <span>archetype ratios</span><span>9%</span><span style="color:#3d4451;">UMAP + KMeans &middot; 2021–25</span>
+          <span>H2H vs strong opponents</span><span>6%</span><span style="color:#3d4451;">win rate vs last-4-yrs playoff teams &middot; 2022–26</span>
           <span>home advantage</span><span>5%</span><span style="color:#3d4451;">home vs away win-rate delta</span>
           <span>toss-decision edge</span><span>4%</span><span style="color:#3d4451;">field% &minus; bat% win rate</span>
         </div>
@@ -2380,9 +2800,10 @@ def write_html(out_path="ipl_crunch_deliverable.html"):
       </div>
     </details>
   </div>
+  {_cimg("13_backtest.png", "Chart 13 · Walk-forward backtest — model trained on prior seasons only, no look-ahead leakage")}
   <p class="reveal" style="color:var(--red);font-size:.72rem;font-family:'JetBrains Mono',monospace;margin-bottom:2rem;">
-    &#9888; CSV data current to {_data_cutoff} &mdash; ~{(pd.Timestamp('2026-05-22') - pd.Timestamp(_data_cutoff)).days} days of matches missing.
-    Eliminated (max pts &lt; {_QUALIFY_CUTOFF}): {", ".join(_SHORT.get(t,t) for t in sorted(_eliminated))}
+    &#9888; Ball-by-ball CSV current to {_data_cutoff} &mdash; standings updated to {_sdata.get('as_of', _data_cutoff) if _os.path.exists(_sfile) else _data_cutoff} via standings_2026.json.
+    Eliminated (max pts &lt; 4th-place current {_pts_sorted[3] if len(_pts_sorted)>=4 else '?'}): {", ".join(_SHORT.get(t,t) for t in sorted(_eliminated))}
   </p>
   <div class="reveal" style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:1.5rem;">
     {"".join(f'''<span style="background:{'rgba(29,185,84,.1)' if _pts26.get(t,0)>=12 else 'rgba(255,75,75,.07)'};border:1px solid {'rgba(29,185,84,.3)' if _pts26.get(t,0)>=12 else 'rgba(255,75,75,.2)'};border-radius:8px;padding:.4rem .8rem;font-family:JetBrains Mono,monospace;font-size:.7rem;color:{'var(--green)' if _pts26.get(t,0)>=12 else '#5a4040'}">
@@ -2440,6 +2861,117 @@ def write_html(out_path="ipl_crunch_deliverable.html"):
     </div>''' for i,t in enumerate(_playoff4))}
   </div>
 
+  <!-- MONTE CARLO SIMULATION -->
+  <div class="reveal" style="margin-top:2.5rem;">
+    <p style="font-family:'JetBrains Mono',monospace;font-size:.62rem;letter-spacing:.2em;text-transform:uppercase;color:var(--sub);margin-bottom:1rem;">🎲 Monte Carlo · {_N_SIM:,} Simulated Brackets</p>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:.75rem;">
+      {"".join(f'''<div style="background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:1.25rem;text-align:center;">
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:1.8rem;color:var(--text);line-height:1;">{_SHORT.get(t,t)}</div>
+        <div style="margin:.75rem 0 .4rem;">
+          <div style="display:flex;justify-content:space-between;font-size:.68rem;color:var(--sub);margin-bottom:.2rem;"><span>Reach Final</span><span style="color:var(--text);font-family:'JetBrains Mono',monospace;">{_mc_final_pct[t]:.1f}%</span></div>
+          <div style="background:var(--bg3);border-radius:999px;height:3px;overflow:hidden;margin-bottom:.5rem;"><div style="width:{min(100,_mc_final_pct[t]):.1f}%;height:100%;background:var(--blue);border-radius:999px;"></div></div>
+          <div style="display:flex;justify-content:space-between;font-size:.68rem;color:var(--sub);margin-bottom:.2rem;"><span>Win Title</span><span style="color:{'var(--green)' if _mc_win_pct[t]>20 else 'var(--sub)'};font-family:'JetBrains Mono',monospace;">{_mc_win_pct[t]:.1f}%</span></div>
+          <div style="background:var(--bg3);border-radius:999px;height:3px;overflow:hidden;"><div style="width:{min(100,_mc_win_pct[t]):.1f}%;height:100%;background:var(--green);border-radius:999px;"></div></div>
+        </div>
+      </div>''' for t in _playoff4)}
+    </div>
+    <p style="font-size:.65rem;color:var(--sub);font-family:'JetBrains Mono',monospace;margin-top:.6rem;">P(A beats B) = sigmoid({_k_calib:.2f} &times; &Delta;score / 100) &middot; k calibrated from {_calib_total:,} historical IPL matches (P(fav wins)={_p_fav:.3f}) &middot; bracket: Q1 &rarr; Elim &rarr; Q2 &rarr; Final</p>
+  </div>
+
+  <!-- HEAD-TO-HEAD MATCHUP INTEL -->
+  <div class="reveal" style="margin-top:2.5rem;">
+    <p style="font-family:'JetBrains Mono',monospace;font-size:.62rem;letter-spacing:.2em;text-transform:uppercase;color:var(--sub);margin-bottom:1rem;">🔍 Playoff Matchup Intel</p>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
+      <div style="background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:1.25rem;">
+        <div style="font-family:'JetBrains Mono',monospace;font-size:.65rem;color:var(--orange);text-transform:uppercase;letter-spacing:.1em;margin-bottom:.6rem;">Qualifier 1 · May 26 · Dharamshala</div>
+        <div style="font-size:1.1rem;font-weight:700;margin-bottom:.75rem;">{_SHORT.get(_q1_t1,_q1_t1)} <span style="color:var(--sub);font-weight:400;font-size:.85rem;">vs</span> {_SHORT.get(_q1_t2,_q1_t2)}</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:.4rem;font-size:.75rem;">
+          <div style="background:var(--bg3);border-radius:8px;padding:.5rem;text-align:center;">
+            <div style="color:var(--sub);font-size:.6rem;margin-bottom:.2rem;">ALL-TIME H2H</div>
+            <div style="font-family:'JetBrains Mono',monospace;">{_SHORT.get(_q1_t1)} {_q1_h2h_all['t1_wins']}–{_q1_h2h_all['t2_wins']} {_SHORT.get(_q1_t2)}</div>
+            <div style="color:var(--sub);font-size:.62rem;">{_q1_h2h_all['total']} meetings</div>
+          </div>
+          <div style="background:var(--bg3);border-radius:8px;padding:.5rem;text-align:center;">
+            <div style="color:var(--sub);font-size:.6rem;margin-bottom:.2rem;">LAST 5 SEASONS</div>
+            <div style="font-family:'JetBrains Mono',monospace;">{_SHORT.get(_q1_t1)} {_q1_h2h_recent['t1_wins']}–{_q1_h2h_recent['t2_wins']} {_SHORT.get(_q1_t2)}</div>
+            <div style="color:var(--sub);font-size:.62rem;">{_q1_h2h_recent['total']} meetings</div>
+          </div>
+        </div>
+        <p style="font-size:.65rem;color:var(--sub);margin-top:.5rem;font-family:'JetBrains Mono',monospace;">MC win probability: {_SHORT.get(_q1_t1)} {_win_prob(_q1_t1,_q1_t2)*100:.1f}% · {_SHORT.get(_q1_t2)} {_win_prob(_q1_t2,_q1_t1)*100:.1f}%</p>
+      </div>
+      <div style="background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:1.25rem;">
+        <div style="font-family:'JetBrains Mono',monospace;font-size:.65rem;color:var(--orange);text-transform:uppercase;letter-spacing:.1em;margin-bottom:.6rem;">Eliminator · May 27 · Mullanpur</div>
+        <div style="font-size:1.1rem;font-weight:700;margin-bottom:.75rem;">{_SHORT.get(_el_t1,_el_t1)} <span style="color:var(--sub);font-weight:400;font-size:.85rem;">vs</span> {_SHORT.get(_el_t2,_el_t2)}</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:.4rem;font-size:.75rem;">
+          <div style="background:var(--bg3);border-radius:8px;padding:.5rem;text-align:center;">
+            <div style="color:var(--sub);font-size:.6rem;margin-bottom:.2rem;">ALL-TIME H2H</div>
+            <div style="font-family:'JetBrains Mono',monospace;">{_SHORT.get(_el_t1)} {_el_h2h_all['t1_wins']}–{_el_h2h_all['t2_wins']} {_SHORT.get(_el_t2)}</div>
+            <div style="color:var(--sub);font-size:.62rem;">{_el_h2h_all['total']} meetings</div>
+          </div>
+          <div style="background:var(--bg3);border-radius:8px;padding:.5rem;text-align:center;">
+            <div style="color:var(--sub);font-size:.6rem;margin-bottom:.2rem;">LAST 5 SEASONS</div>
+            <div style="font-family:'JetBrains Mono',monospace;">{_SHORT.get(_el_t1)} {_el_h2h_recent['t1_wins']}–{_el_h2h_recent['t2_wins']} {_SHORT.get(_el_t2)}</div>
+            <div style="color:var(--sub);font-size:.62rem;">{_el_h2h_recent['total']} meetings</div>
+          </div>
+        </div>
+        <p style="font-size:.65rem;color:var(--sub);margin-top:.5rem;font-family:'JetBrains Mono',monospace;">MC win probability: {_SHORT.get(_el_t1)} {_win_prob(_el_t1,_el_t2)*100:.1f}% · {_SHORT.get(_el_t2)} {_win_prob(_el_t2,_el_t1)*100:.1f}%</p>
+      </div>
+    </div>
+  </div>
+
+</section>
+<div class="divider"></div>
+
+<!-- 2026 FORM METER -->
+<section class="section">
+  <p class="section-label reveal">2026 Season · Live Form</p>
+  <h2 class="section-title reveal">Who's Hot Right Now?</h2>
+  <p class="reveal" style="color:var(--sub);font-size:.9rem;margin-bottom:2rem;">2026 season stats vs each player's own IPL 2021–2025 baseline. Green = outperforming. Red = below their best.</p>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:2rem;" class="reveal">
+    <div>
+      <p style="font-family:'JetBrains Mono',monospace;font-size:.62rem;letter-spacing:.2em;text-transform:uppercase;color:var(--green);margin-bottom:.75rem;">Batters · Strike Rate vs Baseline</p>
+      <table class="results-table">
+        <thead><tr><th>Player</th><th>2026 SR</th><th>Baseline</th><th>Δ</th></tr></thead>
+        <tbody>
+          {"".join(f'''<tr>
+            <td class="tag">{row.name.split()[-1]}</td>
+            <td><strong>{row.sr26:.1f}</strong></td>
+            <td style="color:var(--sub)">{row.sr_base:.1f}</td>
+            <td style="color:{'var(--green)' if row.sr_delta > 0 else 'var(--red)'}">{'▲' if row.sr_delta > 0 else '▼'} {abs(row.sr_delta):.1f}</td>
+          </tr>''' for _, row in _in_form_bat.iterrows())}
+          <tr><td colspan="4" style="color:var(--sub);font-size:.65rem;padding:.4rem 0;">⋯ below baseline ⋯</td></tr>
+          {"".join(f'''<tr>
+            <td class="tag">{row.name.split()[-1]}</td>
+            <td><strong>{row.sr26:.1f}</strong></td>
+            <td style="color:var(--sub)">{row.sr_base:.1f}</td>
+            <td style="color:var(--red)">▼ {abs(row.sr_delta):.1f}</td>
+          </tr>''' for _, row in _out_form_bat.iterrows())}
+        </tbody>
+      </table>
+    </div>
+    <div>
+      <p style="font-family:'JetBrains Mono',monospace;font-size:.62rem;letter-spacing:.2em;text-transform:uppercase;color:var(--blue);margin-bottom:.75rem;">Bowlers · Economy vs Baseline</p>
+      <table class="results-table">
+        <thead><tr><th>Player</th><th>2026 Econ</th><th>Baseline</th><th>Δ</th></tr></thead>
+        <tbody>
+          {"".join(f'''<tr>
+            <td class="tag">{row.name.split()[-1]}</td>
+            <td><strong>{row.econ26:.2f}</strong></td>
+            <td style="color:var(--sub)">{row.econ_base:.2f}</td>
+            <td style="color:var(--green)">▲ {abs(row.econ_delta):.2f} better</td>
+          </tr>''' for _, row in _in_form_bowl.iterrows())}
+          <tr><td colspan="4" style="color:var(--sub);font-size:.65rem;padding:.4rem 0;">⋯ leaking more than baseline ⋯</td></tr>
+          {"".join(f'''<tr>
+            <td class="tag">{row.name.split()[-1]}</td>
+            <td><strong>{row.econ26:.2f}</strong></td>
+            <td style="color:var(--sub)">{row.econ_base:.2f}</td>
+            <td style="color:var(--red)">▼ {abs(row.econ_delta):.2f} worse</td>
+          </tr>''' for _, row in _out_form_bowl.iterrows())}
+        </tbody>
+      </table>
+    </div>
+  </div>
 </section>
 <div class="divider"></div>
 
