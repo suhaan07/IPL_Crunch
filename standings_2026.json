@@ -1,5 +1,5 @@
 {
-  "as_of": "2026-05-24",
+  "as_of": "2026-05-27",
   "standings": {
     "Royal Challengers Bangalore": {
       "M": 14,
@@ -22,6 +22,13 @@
       "NR": 0,
       "Pts": 18
     },
+    "Rajasthan Royals": {
+      "M": 14,
+      "W": 8,
+      "L": 6,
+      "NR": 0,
+      "Pts": 16
+    },
     "Punjab Kings": {
       "M": 14,
       "W": 7,
@@ -29,17 +36,17 @@
       "NR": 1,
       "Pts": 15
     },
-    "Rajasthan Royals": {
-      "M": 13,
+    "Delhi Capitals": {
+      "M": 14,
       "W": 7,
-      "L": 6,
+      "L": 7,
       "NR": 0,
       "Pts": 14
     },
     "Kolkata Knight Riders": {
-      "M": 13,
+      "M": 14,
       "W": 6,
-      "L": 6,
+      "L": 7,
       "NR": 1,
       "Pts": 13
     },
@@ -50,17 +57,10 @@
       "NR": 0,
       "Pts": 12
     },
-    "Delhi Capitals": {
-      "M": 13,
-      "W": 6,
-      "L": 7,
-      "NR": 0,
-      "Pts": 12
-    },
     "Mumbai Indians": {
-      "M": 13,
+      "M": 14,
       "W": 4,
-      "L": 9,
+      "L": 10,
       "NR": 0,
       "Pts": 8
     },
@@ -76,12 +76,12 @@
     "Royal Challengers Bangalore": 0.783,
     "Gujarat Titans": 0.695,
     "Sunrisers Hyderabad": 0.524,
+    "Rajasthan Royals": 0.189,
     "Punjab Kings": 0.309,
-    "Rajasthan Royals": 0.083,
-    "Kolkata Knight Riders": 0.011,
+    "Delhi Capitals": -0.651,
+    "Kolkata Knight Riders": -0.147,
     "Chennai Super Kings": -0.345,
-    "Delhi Capitals": -0.871,
-    "Mumbai Indians": -0.51,
+    "Mumbai Indians": -0.584,
     "Lucknow Super Giants": -0.74
   }
 }
