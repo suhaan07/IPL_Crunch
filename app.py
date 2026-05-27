@@ -10,6 +10,10 @@ st.markdown("""
     <style>
         #MainMenu, header, footer { display: none !important; }
         .block-container { padding: 0 !important; max-width: 100% !important; margin: 0 !important; }
+        html, body, [data-testid="stAppViewContainer"], [data-testid="stApp"] {
+            overflow: hidden !important;
+            height: 100vh !important;
+        }
     </style>
 """, unsafe_allow_html=True)
 
@@ -38,4 +42,4 @@ lock_parent_scroll = """
 """
 
 html_fixed = html.replace("</body>", lock_parent_scroll + "\n</body>")
-st.components.v1.html(html_fixed, height=800, scrolling=True)
+st.components.v1.html(html_fixed, height=900, scrolling=True)
