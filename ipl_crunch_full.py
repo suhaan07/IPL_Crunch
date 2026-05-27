@@ -19,7 +19,7 @@
 # A. SETUP
 # ─────────────────────────────────────────────────────────────────
 
-CSV_PATH = r"iplexcel.csv"   
+CSV_PATH = "iplexcel.csv"   
 
 import sys
 if sys.stdout.encoding != "utf-8":
