@@ -10,16 +10,18 @@ st.markdown("""
     <style>
         #MainMenu, header, footer { display: none !important; }
         .block-container { padding: 0 !important; max-width: 100% !important; margin: 0 !important; }
-        html, body,
-        [data-testid="stApp"],
-        [data-testid="stAppViewContainer"],
-        [data-testid="stMain"],
-        section[data-testid="stMain"],
-        .main {
-            overflow: hidden !important;
+        /* Take the iframe out of normal flow so Streamlit has nothing to scroll */
+        iframe {
+            position: fixed !important;
+            top: 0 !important;
+            left: 0 !important;
+            width: 100vw !important;
             height: 100vh !important;
-            max-height: 100vh !important;
+            border: none !important;
+            z-index: 9999 !important;
         }
+        /* Kill the outer page scroll */
+        html, body { overflow: hidden !important; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -31,25 +33,9 @@ with open("ipl_crunch_deliverable.html", "r", encoding="utf-8") as f:
 lock_parent_scroll = """
 <script>
 (function () {
-    var iframe = window.frameElement;
-    if (!iframe) return;
-    var pdoc = window.parent.document;
-    var lockScroll = function () {
-        pdoc.documentElement.style.overflow = "hidden";
-        pdoc.body.style.overflow = "hidden";
-        var stMain = pdoc.querySelector('[data-testid="stMain"]');
-        if (stMain) stMain.style.overflow = "hidden";
-        var h = window.parent.innerHeight + "px";
-        iframe.style.height = h;
-        iframe.style.width = "100%";
-        iframe.style.border = "none";
-        iframe.style.display = "block";
-    };
-    lockScroll();
-    window.parent.addEventListener("resize", lockScroll);
-    // Re-apply after Streamlit re-renders
-    var obs = new MutationObserver(lockScroll);
-    obs.observe(pdoc.body, { childList: true, subtree: true });
+    var pdoc = window.parent ? window.parent.document : document;
+    pdoc.documentElement.style.overflow = "hidden";
+    pdoc.body.style.overflow = "hidden";
 })();
 </script>
 """
