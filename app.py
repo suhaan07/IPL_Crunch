@@ -10,9 +10,15 @@ st.markdown("""
     <style>
         #MainMenu, header, footer { display: none !important; }
         .block-container { padding: 0 !important; max-width: 100% !important; margin: 0 !important; }
-        html, body, [data-testid="stAppViewContainer"], [data-testid="stApp"] {
+        html, body,
+        [data-testid="stApp"],
+        [data-testid="stAppViewContainer"],
+        [data-testid="stMain"],
+        section[data-testid="stMain"],
+        .main {
             overflow: hidden !important;
             height: 100vh !important;
+            max-height: 100vh !important;
         }
     </style>
 """, unsafe_allow_html=True)
@@ -28,15 +34,22 @@ lock_parent_scroll = """
     var iframe = window.frameElement;
     if (!iframe) return;
     var pdoc = window.parent.document;
-    pdoc.documentElement.style.overflow = "hidden";
-    pdoc.body.style.overflow = "hidden";
-    iframe.style.height = window.parent.innerHeight + "px";
-    iframe.style.width = "100%";
-    iframe.style.border = "none";
-    iframe.style.display = "block";
-    window.parent.addEventListener("resize", function () {
-        iframe.style.height = window.parent.innerHeight + "px";
-    });
+    var lockScroll = function () {
+        pdoc.documentElement.style.overflow = "hidden";
+        pdoc.body.style.overflow = "hidden";
+        var stMain = pdoc.querySelector('[data-testid="stMain"]');
+        if (stMain) stMain.style.overflow = "hidden";
+        var h = window.parent.innerHeight + "px";
+        iframe.style.height = h;
+        iframe.style.width = "100%";
+        iframe.style.border = "none";
+        iframe.style.display = "block";
+    };
+    lockScroll();
+    window.parent.addEventListener("resize", lockScroll);
+    // Re-apply after Streamlit re-renders
+    var obs = new MutationObserver(lockScroll);
+    obs.observe(pdoc.body, { childList: true, subtree: true });
 })();
 </script>
 """
